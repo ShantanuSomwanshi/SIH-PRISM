@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local secrets and environment files
+backend/.env
+
+# Local source corpus and generated vector database
+backend/data/
+backend/chroma_db/
+
+# Local model/cache files
+.cache/
+*.sqlite3

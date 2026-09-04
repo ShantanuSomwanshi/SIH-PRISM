@@ -1,0 +1,21 @@
+Folder PATH listing
+Volume serial number is 0000002D FADE:49A8
+C:.
+¦   structure.txt
+¦   
++---backend
+¦   ¦   .env
+¦   ¦   main.py
+¦   ¦   rag_engine.py
+¦   ¦   requirements.txt
+¦   ¦   
+¦   +---chroma_db
+¦   +---data
++---frontend
+    ¦   package.json
+    ¦   tailwind.config.js
+    ¦   
+    +---src
+            App.jsx
+            index.css
+            
