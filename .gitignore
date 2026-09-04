@@ -1,0 +1,9 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+bis_monitor.db*
+logs/*.log
+state/*
+downloads/*
+legacy_scraper/Book 2.xlsx
