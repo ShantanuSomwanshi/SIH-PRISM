@@ -15,6 +15,7 @@ venv/
 
 # Backup copies made while refactoring
 *.bak
+*.orig
 
 # Editors and operating systems
 .vscode/

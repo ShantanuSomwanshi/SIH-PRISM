@@ -1,21 +1,55 @@
-Folder PATH listing
-Volume serial number is 0000002D FADE:49A8
-C:.
-¦   structure.txt
-¦   
-+---backend
-¦   ¦   .env
-¦   ¦   main.py
-¦   ¦   rag_engine.py
-¦   ¦   requirements.txt
-¦   ¦   
-¦   +---chroma_db
-¦   +---data
-+---frontend
-    ¦   package.json
-    ¦   tailwind.config.js
-    ¦   
-    +---src
-            App.jsx
-            index.css
-            
+PRISM repository structure
+Generated 2026-09-05
+
+Lists files under version control. Generated and local-only paths
+(.venv, node_modules, backend/data, chroma_db, ocr_cache, .env,
+ scraper downloads) are excluded by .gitignore and omitted here.
+
+rag/.gitignore
+rag/COMMIT_MESSAGES.md
+rag/PIPELINE.md
+rag/backend/.env.example
+rag/backend/__init__.py
+rag/backend/build_catalog.py
+rag/backend/catalog.py
+rag/backend/config.py
+rag/backend/embeddings.py
+rag/backend/ingestion_report.json
+rag/backend/list_models.py
+rag/backend/main.py
+rag/backend/pdf_extract.py
+rag/backend/rag_engine.py
+rag/backend/recommend.py
+rag/backend/requirements.txt
+rag/backend/retriever.py
+rag/backend/standards_catalog.json
+rag/frontend/.gitignore
+rag/frontend/index.html
+rag/frontend/package-lock.json
+rag/frontend/package.json
+rag/frontend/src/App.jsx
+rag/frontend/src/index.css
+rag/frontend/src/main.jsx
+rag/frontend/tailwind.config.js
+rag/frontend/vite.config.js
+rag/structure.txt
+scraper/.env.example
+scraper/.gitignore
+scraper/PROJECT_CONTEXT.md
+scraper/README.md
+scraper/bis_change_detector/__init__.py
+scraper/bis_change_detector/artifact_parser.py
+scraper/bis_change_detector/change_detector.py
+scraper/bis_change_detector/config.py
+scraper/bis_change_detector/db.py
+scraper/bis_change_detector/discovery.py
+scraper/bis_change_detector/fingerprint.py
+scraper/bis_change_detector/logging_config.py
+scraper/bis_change_detector/page_hasher.py
+scraper/bis_change_detector/scheduler.py
+scraper/bis_change_detector/scraper_adapter.py
+scraper/legacy_scraper/download_standards.py
+scraper/requirements.txt
+scraper/run_once.bat
+scraper/run_scheduler.bat
+scraper/sql/schema.sql

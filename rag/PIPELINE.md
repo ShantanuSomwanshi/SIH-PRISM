@@ -1,134 +1,329 @@
-# PRISM Prototype Pipeline
+# PRISM - Pipeline and Architecture
 
-PRISM is a standards-focused RAG prototype: PDFs are indexed locally, a query is retrieved with both semantic and keyword search, and an LLM is intended to turn the retrieved context into a procurement recommendation.
+PRISM recommends the Indian Standard(s) that apply to a product description
+or tender specification. PDFs are indexed locally, a query is answered with
+hybrid retrieval, and an LLM turns the retrieved evidence into a structured
+recommendation with citations.
 
-## Project context
+This document describes the RAG half of the project. The `scraper/` folder
+is a separate component (BIS change detection) and is not yet connected -
+see **Handoff** at the end.
 
-### Problem and purpose
+---
 
-Government departments, public sector enterprises, procurement agencies, and private organizations prepare tender specifications that often need to reference the correct Indian Standards (IS). Finding the right standards is difficult because there are many published standards, overlapping scopes, frequent revisions, and associated or normative references. Missing standards, outdated versions, or incomplete requirements can create ambiguity, reduce product quality, and lead to procurement disputes.
+## 1. Problem
 
-PRISM is intended to be an AI-assisted recommendation engine that can integrate with procurement portals. Given a product description, technical specification, or tender document, it should recommend the most relevant Indian Standard(s) and identify allied standards such as normative references, test methods, terminology, safety, installation, and related product standards. It should also surface the latest version and amendments, applicable certification requirements such as BIS Product Certification, CRS, or Hallmarking, and support multilingual natural-language input.
+Procurement officials must reference the correct Indian Standards when
+writing tender specifications. There are thousands of published standards
+with overlapping scopes and frequent revisions, plus normative references
+that also need citing. Specifications routinely omit relevant standards or
+cite superseded editions, which causes ambiguity and procurement disputes.
 
-### Expected end-to-end workflow
+PRISM takes a product description and returns:
 
-1. A procurement official enters a product description, technical specification, or tender text in the web interface.
-2. The backend retrieves relevant chunks from the locally indexed BIS/Indian Standards corpus.
-3. Retrieval results are reranked and supplied to an LLM as the evidence context.
-4. The system returns a grounded recommendation with a primary standard, allied standards, version status, certification information, confidence, and source references.
-5. When the input is ambiguous, the system asks for clarification before making a recommendation.
+- the most relevant primary standard
+- allied standards (normative references, test methods, terminology)
+- the edition and reaffirmation status
+- applicable certification requirements
+- page-level citations for every claim
 
-### Repository map
+---
 
-- `backend/rag_engine.py` ingests PDFs from `backend/data/` into the local Chroma database.
-- `backend/retriever.py` implements hybrid retrieval, reranking, and the standalone terminal Q&A flow.
-- `backend/main.py` contains the FastAPI service and currently implements health and document-ingestion routes.
-- `backend/chroma_db/` contains the local Chroma persistence directory and should be treated as generated data.
-- `backend/processed_files.json` tracks PDFs already processed by the ingestion script.
-- `frontend/src/App.jsx` contains the React prototype for submitting queries and rendering clarification or recommendation responses.
-- `frontend/` contains the web client configuration; its `package.json` is currently empty, so frontend installation/startup metadata still needs to be completed.
+## 2. Current status
 
-### Development conventions and constraints
+**Working**
 
-- Keep the standards corpus grounded: recommendations must be based on retrieved source chunks, and unsupported claims should be reported as unknown rather than invented.
-- Preserve source metadata and standard identifiers through ingestion, retrieval, reranking, and API serialization so answers can be audited.
-- Keep ingestion repeatable. Do not reprocess files already listed in `backend/processed_files.json` unless intentionally rebuilding the index.
-- Use the existing local Chroma collection `prism_standards` and embedding model `BAAI/bge-m3` unless a change explicitly includes migration or reindexing work.
-- Keep secrets such as `GROQ_API_KEY` in `backend/.env`; do not commit credentials.
-- Changes that connect the UI to the backend must keep the frontend request and response schema aligned with the FastAPI route.
+- Ingestion of text and scanned PDFs, with automatic per-page OCR
+- Standards catalog mapping each file to its real IS number and title
+- Hybrid retrieval (vector + BM25), fused and reranked
+- Standard-level ranking, so allied standards can surface
+- `POST /api/recommend` returning a structured recommendation
+- A clarification branch for descriptions too brief to act on
+- React frontend showing recommendations, sources and confidence
 
-### Current priorities and known limitations
+**Not yet built**
 
-The highest-priority integration work is to add `POST /api/recommend` to `backend/main.py`, connect it to `PrismHybridRetriever`, invoke the Groq generation chain, and return the response shape expected by `frontend/src/App.jsx`. The current browser UI cannot complete a recommendation because that route is absent.
+- No connection to the `scraper/` component, so live revision status is
+  unknown and `status` is `"Unknown"` for every standard
+- No certification data - `certification` always reports "Not determined"
+- No deterministic normative-reference graph; allied standards are read out
+  of retrieved text by the LLM
+- Corpus is 10 documents, so most referenced standards are not held
+- The reranker is English-only, which limits the multilingual claim
+- No automated tests and no retrieval evaluation set
 
-Other prototype limitations include incomplete frontend package configuration, no visible CORS configuration in the FastAPI app, local-only Chroma storage, no automated test suite, and no implemented workflow yet for checking the latest standard versions, amendments, or certification rules. These should be treated as planned capabilities rather than claims that the current prototype already satisfies.
+---
 
-### Verified local setup
+## 3. Repository map
 
-Backend dependencies are listed in `backend/requirements.txt`. The embedding model and cross-encoder download model weights on first use, so the first ingestion or retrieval run may be slow and require substantial disk space. The terminal Q&A path also requires `GROQ_API_KEY` in `backend/.env`.
-
-From the repository root, the intended backend commands are:
-
-```text
-pip install -r backend/requirements.txt
-python backend/rag_engine.py
-python backend/retriever.py
-uvicorn backend.main:app --reload
+```
+rag/
+  backend/
+    config.py            All paths and settings, read from .env
+    embeddings.py        The single definition of the embedding model
+    pdf_extract.py       Page-by-page text extraction with OCR fallback
+    build_catalog.py     Builds standards_catalog.json from the PDFs
+    catalog.py           Loads the catalog, supplies per-chunk metadata
+    rag_engine.py        Ingestion: extract, chunk, embed, store, report
+    retriever.py         Hybrid search, fusion, reranking, terminal Q&A
+    recommend.py         Recommendation logic behind /api/recommend
+    main.py              FastAPI app, routes, security
+    data/                Source PDFs (not committed)
+    chroma_db/           Vector store (generated, not committed)
+    ocr_cache/           Cached OCR text (generated, not committed)
+    standards_catalog.json   Filename -> IS number and title (committed)
+    ingestion_report.json    Per-file extraction quality report
+  frontend/
+    index.html, vite.config.js, package.json
+    src/App.jsx          The UI
+    src/main.jsx         React entry point
 ```
 
-The frontend startup command is not yet documented because `frontend/package.json` is empty and the client dependency/tooling setup is incomplete.
+**Run every backend command from the `rag` folder**, using
+`python -m backend.<module>`. That matches how `uvicorn backend.main:app`
+resolves imports.
 
-## 1. Source documents and ingestion
+---
 
-1. Place BIS/Indian Standards PDFs in `backend/data/`.
-2. Run `backend/rag_engine.py`.
-3. The ingestion engine:
-   - reads only `.pdf` files not listed in `backend/processed_files.json`;
-   - extracts page text with `PDFPlumberLoader`;
-   - splits text into 1,000-character chunks with 200-character overlap;
-   - creates chunk IDs such as `<filename>_chunk_<number>`;
-   - embeds chunks with `BAAI/bge-m3` via Hugging Face;
-   - writes vectors, text, and metadata to the local Chroma collection `prism_standards` in `backend/chroma_db/`;
-   - updates `processed_files.json` so already processed PDFs are skipped on later runs.
+## 4. Setup
 
-The first embedding run downloads the `bge-m3` model weights. The current manifest contains ten tracked PDF filenames.
+### Backend
 
-## 2. Query and retrieval
-
-`backend/retriever.py` loads the same embedding model and Chroma collection, then builds a BM25 index over all stored chunks. The source filename is included in the BM25 text so queries containing a standard number, such as `1001`, can match `1001.pdf`.
-
-For each query:
-
-1. Vector similarity search returns a candidate pool of 20 chunks.
-2. BM25 keyword search returns a candidate pool of 20 chunks.
-3. Reciprocal Rank Fusion combines both result lists using `1 / (60 + rank)`.
-4. A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) reranks the fused candidates.
-5. The top four reranked chunks are selected.
-6. Each selected chunk retains its source metadata, fusion score, and reranking score.
-
-This hybrid approach combines meaning-based matching with exact terms and standard identifiers.
-
-## 3. Answer generation
-
-The standalone interactive mode in `retriever.py` formats the four chunks as a source-labeled context and sends them to Groq using `ChatGroq` with model `openai/gpt-oss-120b` and temperature `0.1`.
-
-The prompt instructs the model to:
-
-- answer strictly from the supplied standards context;
-- say it cannot find the answer when the context is insufficient;
-- cite standard names and clause/table numbers when available.
-
-The Groq API key is loaded from `backend/.env` as `GROQ_API_KEY`. The generated answer and the source filenames/scores are printed in the terminal.
-
-## 4. API and frontend flow
-
-`backend/main.py` creates a FastAPI app and initializes the same local `prism_standards` Chroma collection. Its implemented routes are:
-
-- `GET /` - health check;
-- `POST /ingest` - accepts a JSON list of `{id, content, metadata}` objects, embeds them, and stores them in Chroma.
-
-The React UI in `frontend/src/App.jsx` accepts a product description or tender specification, sends it as `{query: "..."}` to `POST http://127.0.0.1:8000/api/recommend`, and renders either clarification choices or a recommendation containing the primary standard, allied standards, version status, certification, and confidence flag.
-
-## 5. Current integration status
-
-The frontend recommendation route is not currently implemented in `backend/main.py`, and `main.py` does not import or call `PrismHybridRetriever` or the Groq generation chain. Therefore the PDF/Chroma pipeline and the terminal Q&A path work as separate prototype pieces, but the browser UI cannot complete a recommendation against the current FastAPI app until `/api/recommend` is added and wired to retrieval plus LLM generation.
-
-## 6. Data flow
-
-```text
-PDFs in backend/data/
-        |
-        v
-PDFPlumberLoader -> text chunks -> bge-m3 embeddings -> Chroma
-        |                                      |
-processed_files.json                           v
-                                      vector search + BM25
-                                                |
-                                      reciprocal rank fusion
-                                                |
-                                      top 4 context chunks
-                                                |
-                                      Groq LLM recommendation
-                                                |
-                         terminal output / intended React API response
+```powershell
+cd rag
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r backend\requirements.txt
+copy backend\.env.example backend\.env
 ```
+
+Then edit `backend/.env` and set `GROQ_API_KEY`.
+
+**OCR requires Tesseract**, installed separately:
+<https://github.com/UB-Mannheim/tesseract/wiki>, or `winget install
+UB-Mannheim.TesseractOCR`. Set `TESSERACT_CMD` in `.env` to its full path,
+or leave it blank if Tesseract is on your PATH.
+
+The embedding model (`BAAI/bge-m3`, ~2.2 GB) and the reranker download on
+first use into `~/.cache/huggingface`, not into the project.
+
+### Build the index
+
+```powershell
+python -m backend.build_catalog        # draft the standards catalog
+python -m backend.rag_engine           # ingest new PDFs
+python -m backend.rag_engine --rebuild # wipe and rebuild from scratch
+python -m backend.rag_engine --dry-run # extract and chunk without embedding
+```
+
+### Run
+
+```powershell
+uvicorn backend.main:app --reload      # from the rag folder
+```
+
+Startup takes about a minute - the embedding model, reranker and keyword
+index all load before the first request. Wait for `Application startup
+complete.` Interactive docs are at <http://127.0.0.1:8000/docs>.
+
+### Frontend
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Opens on <http://localhost:5173>, which is in the backend's default
+`ALLOWED_ORIGINS`. Change both together if you change the port.
+
+---
+
+## 5. Ingestion
+
+For each PDF, **page by page**:
+
+1. Extract text with `pdfplumber`.
+2. Strip the BIS download watermark. Every page of a portal-downloaded BIS
+   PDF carries a line naming the downloader and their IP address. It is
+   noise, it repeats hundreds of times, and it contains personal data that
+   should not enter the vector store or an LLM prompt.
+3. If what remains is under `MIN_CHARS_PER_PAGE` (default 200), treat the
+   page as a scan: render it with PyMuPDF at `OCR_DPI` (default 300) and
+   read it with Tesseract. Keep whichever result has more text.
+4. Cache the raw OCR output in `ocr_cache/`, keyed to the file's SHA-256 so
+   replacing a PDF invalidates it automatically.
+
+The check is **per page, not per file**. Mixed documents are common: IS 1067
+is a born-digital 2024 standard with one scanned page in the middle. A
+per-file check would call it healthy and lose that page silently.
+
+Chunking is also per page (1000 characters, 200 overlap), so a chunk never
+straddles a page boundary and its page number is always correct. Each chunk
+is prefixed with `[IS 33 : 1992] TITLE` so the standard number is searchable
+in the chunk's own content.
+
+Every chunk stores: `standard_id`, `title`, `doc_type`, `number`, `part`,
+`publication_date`, `edition`, `status`, `source` (bare filename),
+`page`, `total_pages`, `extraction_method`, `chunk_id`, `confidence`.
+
+`ingestion_report.json` records characters per page, OCR page count and
+watermark characters removed for each file, and warns on anything that
+extracted poorly.
+
+### Current corpus
+
+10 documents, 118 pages, 311 chunks, 15 pages recovered by OCR, 15,816
+watermark characters removed.
+
+---
+
+## 6. The standards catalog
+
+`standards_catalog.json` maps each filename to its real identity. Without
+it a chunk knows only that it came from `10_1_1990_reff2020.pdf`, not that
+this is IS 10 (Part 1) : 1990.
+
+`build_catalog.py` reads each PDF's **cover page only** - body pages contain
+prose like "...is 2 mm..." and cross-references like "33-1960" that look
+like standard numbers and years. The filename wins for the number (OCR
+mangles digits; one cover's text layer reads "IS 10 ( Part 1 ): 1910"), and
+the cover supplies the title and edition.
+
+Entries are **scored, not hand-verified**. The filename and cover page are
+independent sources; where they agree the entry verifies itself. Confidence
+drops on disagreement, a failed title sanity check, or an OCR'd cover. Only
+`medium` and `low` entries need a human, which is what makes this scale
+past a handful of documents.
+
+Field names deliberately match the scraper's SQLite columns so the two
+components join cleanly later.
+
+---
+
+## 7. Retrieval
+
+`retriever.py`, for each query:
+
+1. Vector search over Chroma (`prism_standards`, `BAAI/bge-m3`) - 20 chunks.
+2. BM25 keyword search - 20 chunks. The standard number and title are folded
+   into the indexed text so "IS 33" matches directly.
+3. Reciprocal Rank Fusion at `1/(60 + rank)`, **keyed on `chunk_id`**.
+   Keying on chunk text merges two different standards that share a
+   boilerplate paragraph, and the survivor inherits one of their identities
+   - which means quoting a passage under the wrong standard number.
+4. Cross-encoder rerank (`ms-marco-MiniLM-L-6-v2`).
+
+The BM25 index is saved to `bm25_index.pkl` and rebuilt only when the corpus
+fingerprint (chunk count plus ingestion manifest) changes.
+
+`search_standards()` groups the results **by standard** rather than
+returning a flat list of passages. A standard scores on its best chunk plus
+`log1p(chunk_count)`, so one lucky match does not beat consistent relevance.
+Without this grouping the top passages nearly always come from a single
+document and allied standards can never surface.
+
+---
+
+## 8. Recommendation API
+
+`POST /api/recommend` with `{"query": "..."}` returns either a
+recommendation or a clarifying question.
+
+```json
+{
+  "clarification_needed": false,
+  "primary_standard": "IS 38 : 1976",
+  "title": "Specification for Antimony Oxide for Paints",
+  "allied_standards": [
+    {"code": "IS 33 : 1992", "role": "methods of sampling and test",
+     "in_corpus": true}
+  ],
+  "version_status": "...",
+  "certification": "Not determined...",
+  "confidence_flag": true,
+  "confidence": "high",
+  "reasoning": "...",
+  "sources": [
+    {"citation": "IS 38 : 1976, page 4", "standard_id": "IS 38 : 1976",
+     "page": 4, "ocr": false}
+  ]
+}
+```
+
+### Guardrails
+
+- The model may only choose a primary standard from the retrieved
+  candidates. Anything else is logged and replaced with the top-ranked
+  standard, so IS numbers cannot be invented.
+- The prompt forbids the model from mentioning certification. A wrong
+  certification claim in a tender is worse than no claim, and there is no
+  data source for it yet.
+- `version_status` states plainly that live revision status is unverified
+  rather than implying the standard is current.
+- Retrieved text is wrapped in `<candidate>` tags and the model is told it
+  is data, never instructions.
+- Citations mark OCR'd pages. OCR misreads characters - one page rendered
+  "100 +/- 1 degC" as "100 + 1 degC" - so a reader needs to know which
+  numbers to check against the original.
+
+### When it asks instead of answering
+
+Two independent triggers:
+
+1. **Too brief.** Fewer than `MIN_QUERY_TERMS` (3) meaningful words after
+   removing filler. This is not about retrieval quality: "paint" matches
+   IS 33 strongly, but still does not say whether you are buying pigment,
+   testing it, or packaging it. Similarity is not sufficiency.
+2. **Too close to call.** Top score below `WEAK_MATCH_SCORE` (0.0) *and*
+   the top two candidates within `AMBIGUOUS_MARGIN` (1.5).
+
+Confidence is `high` at or above `STRONG_MATCH_SCORE` (4.0) with the model
+reporting sufficient evidence, `medium` above 0.0, otherwise `low`.
+
+---
+
+## 9. Security
+
+- `POST /ingest` is disabled unless `INGEST_ENABLED=true` and requires a
+  matching `X-API-Key`. Anything written there becomes source material the
+  LLM treats as authoritative, so an open ingest route is a way to poison
+  answers.
+- CORS is restricted to `ALLOWED_ORIGINS`, never `*`.
+- Per-IP rate limit, default 30 requests per 60 seconds. In-memory, so it
+  resets on restart and does not span processes - adequate for a prototype,
+  not for deployment.
+- Request caps: `MAX_QUERY_CHARS` 4000, `MAX_INGEST_DOCS` 100,
+  `MAX_INGEST_CHARS` 50000.
+- Errors are logged in full server-side and returned as generic messages.
+- `/docs` is public. Disable or protect it before any real deployment.
+
+---
+
+## 10. Handoff to the scraper
+
+`scraper/` monitors BIS pages, detects changes and extracts standard
+metadata into SQLite. It is not yet wired in. Two visible seams:
+
+- `status` is `"Unknown"` on every catalog entry
+- `version_status` says revision status is unverified
+
+The catalog already uses the scraper's field names (`standard_id`, `title`,
+`status`, `last_amendment_date`, `publication_date`, `edition`), so
+connecting them is a fill-in rather than a rewrite. The scraper's planned
+reference-extraction would also replace LLM-read allied standards with a
+deterministic normative-reference graph.
+
+---
+
+## 11. Conventions
+
+- Recommendations must be grounded in retrieved chunks. Unsupported claims
+  are reported as unknown, never invented.
+- Source metadata and standard identifiers are preserved through ingestion,
+  retrieval, reranking and serialisation so answers stay auditable.
+- Ingestion is repeatable and hash-based; a changed PDF is re-ingested.
+- The collection is `prism_standards` and the model is `BAAI/bge-m3`.
+  Changing either requires a full reindex - vectors from different models
+  are not comparable.
+- Secrets live in `backend/.env`, which is git-ignored. Never commit it.

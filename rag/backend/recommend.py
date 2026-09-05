@@ -41,6 +41,28 @@ WEAK_MATCH_SCORE = 0.0
 # If the top two candidates are this close, the query cannot separate them.
 AMBIGUOUS_MARGIN = 1.5
 
+# A description with fewer meaningful words than this cannot identify a
+# standard, however well it happens to match. "paint" retrieves IS 33
+# strongly - but paint pigment testing, paint packaging and paint
+# application are different standards, and one word cannot choose between
+# them. Retrieval score measures similarity, not sufficiency.
+MIN_QUERY_TERMS = 3
+
+# Words carrying no product information, ignored when counting terms.
+FILLER_WORDS = {
+    "the", "a", "an", "and", "or", "for", "of", "in", "on", "to", "with",
+    "is", "are", "was", "be", "by", "at", "as", "from", "this", "that",
+    "it", "its", "we", "i", "need", "want", "looking", "find", "please",
+    "standard", "standards", "specification", "tender", "procurement",
+    "product", "item", "material", "quality", "requirement", "requirements",
+}
+
+
+def meaningful_terms(query: str) -> List[str]:
+    """Words in the query that actually describe a product."""
+    words = re.findall(r"[a-zA-Z0-9]+", query.lower())
+    return [w for w in words if len(w) > 2 and w not in FILLER_WORDS]
+
 
 # --- response shape (matches what frontend/src/App.jsx renders) --------
 
@@ -134,14 +156,87 @@ def _extract_json(text: str) -> Optional[dict]:
         return None
 
 
+# Guessing at acronyms by length fails badly: AND, FOR, PART and BULB are
+# all short and uppercase in a shouted title. An explicit list is less
+# clever but predictable, and easy to extend as the corpus grows.
+KNOWN_ACRONYMS = {
+    "PVC", "UPVC", "HDPE", "LDPE", "LLDPE", "GI", "MS", "RCC", "PCC",
+    "AC", "DC", "HT", "LT", "LPG", "CNG", "PNG", "UV", "IR", "LED",
+    "ISO", "IEC", "BIS", "ASTM", "CRS", "QCO", "MDF", "HDF", "GRP",
+    "FRP", "PPE", "EV", "AAC", "ACSR", "XLPE", "PET", "PP", "PE", "PU",
+}
+
+
+def _sentence_case(text: str) -> str:
+    """
+    Turn a shouted BIS title into readable text, keeping acronyms.
+
+    "INORGANIC PIGMENTS AND EXTENDERS" -> "Inorganic pigments and extenders"
+    "PVC INSULATED CABLES"             -> "PVC insulated cables"
+
+    str.capitalize() alone would give "Pvc insulated cables".
+    """
+    words = text.split()
+    out = []
+    for index, word in enumerate(words):
+        bare = word.strip("'\"()[],.").upper()
+        single_letter = sum(1 for c in word if c.isalpha()) == 1 and len(word) <= 3
+
+        if bare in KNOWN_ACRONYMS or single_letter:
+            out.append(word)                      # PVC, LED, group 'A'
+        elif index == 0:
+            out.append(word.capitalize())
+        else:
+            out.append(word.lower())
+    return " ".join(out)
+
+
+# BIS titles use several dash characters as a separator.
+_SEGMENT_RE = re.compile(r"\s+[-\u2013\u2014\u2015]\s+")
+_LEADING_NOISE_RE = re.compile(
+    r"^(SPECIFICATION FOR|METHODS? OF TEST FOR|METHODS? OF|CODE OF PRACTICE FOR)\s+",
+    re.IGNORECASE,
+)
+_TRAILING_NOISE = {"specification", "specifications", "methods of sampling and test"}
+
+
 def _short_label(group: dict, limit: int = 60) -> str:
-    """A clickable clarification option, derived from a candidate's title."""
-    title = (group.get("title") or group.get("standard_id") or "").strip()
-    title = re.sub(r"^(SPECIFICATION FOR|METHODS? OF)\s+", "", title,
-                   flags=re.IGNORECASE)
-    if len(title) > limit:
-        title = title[:limit].rsplit(" ", 1)[0] + "..."
-    return title.capitalize() if title.isupper() else title
+    """
+    A clickable clarification option: the standard number plus the part of
+    the title that names the PRODUCT.
+
+    BIS titles are often "PRODUCT - METHODS OF SAMPLING AND TEST". Cutting
+    at a fixed character count produced buttons like
+    "Inorganic pigments and extenders for paints - methods of...", which
+    breaks mid-phrase and wastes the space on the least useful half.
+    Splitting on the dash keeps the product name whole instead.
+    """
+    standard_id = (group.get("standard_id") or "").strip()
+    title = (group.get("title") or "").strip()
+
+    if title:
+        title = _LEADING_NOISE_RE.sub("", title)
+
+        # Keep the first segment - the product - if it carries enough words.
+        segments = [s.strip() for s in _SEGMENT_RE.split(title) if s.strip()]
+        if segments:
+            if len(segments) > 1 and len(segments[0].split()) >= 2:
+                title = segments[0]
+            elif segments[-1].lower() in _TRAILING_NOISE and len(segments) > 1:
+                title = " ".join(segments[:-1])
+            else:
+                title = segments[0] if len(segments) == 1 else title
+
+        if title.isupper():
+            title = _sentence_case(title)
+
+        # Last resort: trim on a word boundary rather than mid-word.
+        if len(title) > limit:
+            title = title[:limit].rsplit(" ", 1)[0].rstrip(" ,-") + "..."
+
+    if standard_id and title:
+        return f"{standard_id} - {title}"
+    return standard_id or title
 
 
 def _version_status(standard_id: str, catalog: dict) -> str:
@@ -216,13 +311,25 @@ def recommend(query: str, retriever, llm) -> RecommendResponse:
     runner_up = groups[1] if len(groups) > 1 else None
     margin = (top["score"] - runner_up["score"]) if runner_up else 99.0
 
-    # Too weak AND too close to call - ask instead of guessing.
-    if top["best_score"] < WEAK_MATCH_SCORE and margin < AMBIGUOUS_MARGIN:
+    # Two separate reasons to ask rather than guess.
+    #
+    # 1. The description is too short to identify a product at all. This is
+    #    NOT about retrieval quality - "paint" matches IS 33 strongly, but
+    #    still does not say whether you are buying pigment, testing it, or
+    #    packaging it.
+    # 2. Retrieval was weak AND the top candidates are too close together,
+    #    so the ranking itself cannot separate them.
+    too_short = len(meaningful_terms(query)) < MIN_QUERY_TERMS
+    too_close = top["best_score"] < WEAK_MATCH_SCORE and margin < AMBIGUOUS_MARGIN
+
+    if (too_short or too_close) and len(groups) > 1:
         options = [_short_label(g) for g in groups[:3]]
+        reason = ("That description is too brief to identify a standard."
+                  if too_short else
+                  "That description could match several standards.")
         return RecommendResponse(
             clarification_needed=True,
-            message="That description could match several standards. "
-                    "Which is closest to what you are procuring?",
+            message=f"{reason} Which is closest to what you are procuring?",
             clarification_options=[o for o in options if o],
             sources=_sources_from(groups[:3]),
         )
