@@ -3,7 +3,12 @@
 __pycache__/
 *.pyc
 bis_monitor.db*
-logs/*.log
-state/*
-downloads/*
+
+# Generated output. A pattern containing a slash is anchored to THIS
+# folder, so "downloads/*" only matched scraper/downloads/ and missed
+# scraper/legacy_scraper/downloads/. A bare "downloads/" matches a folder
+# of that name at any depth.
+downloads/
+logs/
+state/
 legacy_scraper/Book 2.xlsx

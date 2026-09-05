@@ -17,3 +17,8 @@ backend/ocr_cache/
 
 # Generated keyword index
 backend/bm25_index.pkl
+
+# Local index state. This records which PDFs are in THIS machine's
+# chroma_db, and chroma_db itself is not committed. Committing it would
+# make a fresh clone skip ingestion and end up with an empty index.
+backend/processed_files.json
