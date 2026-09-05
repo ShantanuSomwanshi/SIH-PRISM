@@ -1,0 +1,209 @@
+{
+  "1001.pdf": {
+    "standard_id": "IS 1001 : 1991",
+    "title": "SYNTHETIC RUBBER PROOFED/COATED FUEL PUMP DIAPHRAGM FABRIC — SPECIFICATION",
+    "status": "Unknown",
+    "publication_date": "1991",
+    "edition": "First Revision",
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "1001",
+    "part": null,
+    "reaffirmed_year": "2018",
+    "confidence": "high",
+    "confidence_score": 85,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number agreed by filename and cover",
+      "cover was read by OCR - spelling may be imperfect"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "1067_2024.pdf": {
+    "standard_id": "IS 1067 : 2024",
+    "title": "Electroplated Coating of Silver for Decorative and Protective Purposes ― Specification",
+    "status": "Unknown",
+    "publication_date": "2024",
+    "edition": "Third Revision",
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "1067",
+    "part": null,
+    "reaffirmed_year": null,
+    "confidence": "high",
+    "confidence_score": 100,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number agreed by filename and cover",
+      "year agreed by filename and cover"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "10_1_1990_reff2020.pdf": {
+    "standard_id": "IS 10 (Part 1) : 1990",
+    "title": "PLYWOOD TEA-CHESTS - SPECIFICATION PART 1 GENERAL",
+    "status": "Unknown",
+    "publication_date": "1990",
+    "edition": "Fifth Revision",
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "10",
+    "part": "1",
+    "reaffirmed_year": "2020",
+    "confidence": "medium",
+    "confidence_score": 70,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number agreed by filename and cover",
+      "year DISAGREES: filename 1990, cover 1910",
+      "cover text layer reads 1910 (bad glyph); 1990 confirmed correct"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "1863_1979_reff2019.pdf": {
+    "standard_id": "IS 1863 : 1979",
+    "title": "SPECIFICATION FOR ROLLED STEEL BULB FLATS",
+    "status": "Unknown",
+    "publication_date": "1979",
+    "edition": null,
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "1863",
+    "part": null,
+    "reaffirmed_year": "2019",
+    "confidence": "high",
+    "confidence_score": 85,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number from only one source"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "202_1981_reff2022.pdf": {
+    "standard_id": "IS 202 : 1981",
+    "title": "SPECIFICATION FOR ALUMINIUM CASTING ALLOY INGOTS AND CASTINGS FOR AIRCRAFT PURPOSES",
+    "status": "Unknown",
+    "publication_date": "1981",
+    "edition": "Third Revision",
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "202",
+    "part": null,
+    "reaffirmed_year": "2022",
+    "confidence": "medium",
+    "confidence_score": 70,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number from only one source",
+      "year agreed by filename and cover",
+      "cover was read by OCR - spelling may be imperfect"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "33.pdf": {
+    "standard_id": "IS 33 : 1992",
+    "title": "INORGANIC PIGMENTS AND EXTENDERS FOR PAINTS - METHODS OF SAMPLING AND TEST",
+    "status": "Unknown",
+    "publication_date": "1992",
+    "edition": "Third Revision",
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "33",
+    "part": null,
+    "reaffirmed_year": "2019",
+    "confidence": "high",
+    "confidence_score": 85,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number from only one source"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "38.pdf": {
+    "standard_id": "IS 38 : 1976",
+    "title": "SPECIFICATION FOR ANTIMONY OXIDE FOR PAINTS",
+    "status": "Unknown",
+    "publication_date": "1976",
+    "edition": "First Revision",
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "38",
+    "part": null,
+    "reaffirmed_year": "2014",
+    "confidence": "high",
+    "confidence_score": 100,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number agreed by filename and cover"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "6_1983_reff2020.pdf": {
+    "standard_id": "IS 6 : 1983",
+    "title": "SPECIFICATION FOR MODERATE HEAT DUTY FIRECLAY REFRACTORIES, GROUP 'A'",
+    "status": "Unknown",
+    "publication_date": "1983",
+    "edition": null,
+    "last_amendment_date": null,
+    "doc_type": "IS",
+    "number": "6",
+    "part": null,
+    "reaffirmed_year": "2020",
+    "confidence": "high",
+    "confidence_score": 85,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number from only one source"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "sp14.pdf": {
+    "standard_id": "SP 14 : 1976",
+    "title": "INDEX TO STEEL DESIGNATIONS",
+    "status": "Unknown",
+    "publication_date": "1976",
+    "edition": null,
+    "last_amendment_date": null,
+    "doc_type": "SP",
+    "number": "14",
+    "part": null,
+    "reaffirmed_year": "2018",
+    "confidence": "high",
+    "confidence_score": 100,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number agreed by filename and cover"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  },
+  "sp42_2008_reff2021.pdf": {
+    "standard_id": "SP 42 : 2008",
+    "title": "SURVEY OF SCREW THREADS",
+    "status": "Unknown",
+    "publication_date": "2008",
+    "edition": "First Revision",
+    "last_amendment_date": null,
+    "doc_type": "SP",
+    "number": "42",
+    "part": null,
+    "reaffirmed_year": "2021",
+    "confidence": "high",
+    "confidence_score": 100,
+    "needs_review": false,
+    "verified": true,
+    "notes": [
+      "number agreed by filename and cover",
+      "year agreed by filename and cover"
+    ],
+    "verified_by": "cover text cross-checked against filename"
+  }
+}

@@ -1,7 +1,0 @@
-fastapi[standard]
-langchain
-langchain-chroma
-langchain-community
-sentence-transformers
-pydantic
-pypdf

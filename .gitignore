@@ -1,14 +1,23 @@
-.venv/
+# ---------------------------------------------------------------
+# Repository-wide ignores. Each sub-project (rag/, scraper/) also
+# has its own .gitignore for things specific to it.
+# ---------------------------------------------------------------
+
+# Secrets - a catch-all safety net. .env.example is still tracked,
+# because this pattern matches ".env" exactly, not ".env.example".
+.env
+
+# Python
 __pycache__/
 *.py[cod]
+.venv/
+venv/
 
-# Local secrets and environment files
-backend/.env
+# Backup copies made while refactoring
+*.bak
 
-# Local source corpus and generated vector database
-backend/data/
-backend/chroma_db/
-
-# Local model/cache files
-.cache/
-*.sqlite3
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
