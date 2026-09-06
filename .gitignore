@@ -22,3 +22,9 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Source data delivered as an archive. Extract it into the folder that
+# uses it - a zip in git is a blob nobody can diff or review.
+*.zip
+*.7z
+*.rar

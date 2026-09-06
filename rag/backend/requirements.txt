@@ -26,6 +26,10 @@ sentence-transformers>=3.0.0      # BAAI/bge-m3 + cross-encoder
 # --- Keyword search ---
 rank-bm25>=0.2.2
 
+# --- GeM category page scraping ---
+requests>=2.32.0
+beautifulsoup4>=4.12.3
+
 # --- PDF text extraction ---
 pdfplumber>=0.11.0
 

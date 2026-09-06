@@ -24,12 +24,16 @@ Honesty rules, deliberately:
 
 import json
 import logging
+import math
 import re
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
 from backend.catalog import load_catalog
+from backend.references import allied_standards as graph_allied
+from backend.references import chain as reference_chain
+from backend.config import DOC_PASSAGE_CHARS, MAX_DOC_PASSAGES
 from backend.retriever import citation_for, format_standards_context
 
 logger = logging.getLogger("prism")
@@ -70,6 +74,12 @@ class AlliedStandard(BaseModel):
     code: str
     role: str
     in_corpus: bool = False
+    # "reference clause" means this came from the standard's own text at a
+    # named page. "model" means the language model proposed it. Keeping
+    # them distinguishable is the difference between evidence and output.
+    source: str = "model"
+    cited_on_page: Optional[int] = None
+    edition_note: Optional[str] = None
 
 
 class SourceRef(BaseModel):
@@ -94,6 +104,8 @@ class RecommendResponse(BaseModel):
     confidence: str = "low"
     reasoning: Optional[str] = None
     sources: List[SourceRef] = Field(default_factory=list)
+    # The citation chain, where the reference graph has been built.
+    reference_chain: Optional[dict] = None
 
 
 # --- prompt ------------------------------------------------------------
@@ -137,6 +149,19 @@ Reply with JSON only, in exactly this shape:
 
 
 # --- helpers -----------------------------------------------------------
+
+def _number_key(code: str) -> str:
+    """
+    Identify a standard by number and part, ignoring the year.
+
+    "IS 33 : 1976" and "IS 33 : 1992" are the same standard in different
+    editions. Without this they would appear twice in the allied list.
+    """
+    match = re.search(r"(\d{1,5})(?:\s*\(\s*Part\s*([0-9IVXivx]+)\s*\))?", code or "")
+    if not match:
+        return (code or "").strip().lower()
+    return f"{match.group(1)}|{(match.group(2) or '').lower()}"
+
 
 def _extract_json(text: str) -> Optional[dict]:
     """
@@ -334,8 +359,18 @@ def recommend(query: str, retriever, llm) -> RecommendResponse:
             sources=_sources_from(groups[:3]),
         )
 
+    return _finalise(query, groups, llm)
+
+
+def _finalise(description: str, groups: List[dict], llm) -> RecommendResponse:
+    """
+    Ask the model to choose among the candidate standards, then assemble
+    the response. Shared by typed queries and uploaded documents.
+    """
+    top = groups[0]
+
     raw = llm.invoke(PROMPT.format(
-        context=format_standards_context(groups), query=query
+        context=format_standards_context(groups), query=description
     ))
     parsed = _extract_json(getattr(raw, "content", str(raw)))
 
@@ -354,15 +389,32 @@ def recommend(query: str, retriever, llm) -> RecommendResponse:
 
     chosen = next(g for g in groups if g["standard_id"] == primary)
 
-    allied = []
+    # Allied standards come from the reference graph first. Those were
+    # extracted from a named page of the standard itself, so they can be
+    # checked. Anything the model adds on top is kept but labelled, so a
+    # reader can tell evidence from generation.
+    allied, seen = [], {_number_key(primary)}
+
+    for item in graph_allied(primary):
+        key = _number_key(item["code"])
+        if key in seen:
+            continue
+        seen.add(key)
+        allied.append(AlliedStandard(source="reference clause", **item))
+
     for item in parsed.get("allied_standards") or []:
         code = str(item.get("code", "")).strip()
-        if not code or code == primary:
+        if not code:
             continue
+        key = _number_key(code)
+        if key in seen:
+            continue
+        seen.add(key)
         allied.append(AlliedStandard(
             code=code,
             role=str(item.get("role", "related standard")).strip(),
             in_corpus=code in candidate_ids,
+            source="model",
         ))
 
     sufficient = bool(parsed.get("sufficient_evidence", True))
@@ -381,4 +433,104 @@ def recommend(query: str, retriever, llm) -> RecommendResponse:
         confidence=confidence,
         reasoning=parsed.get("reasoning"),
         sources=_sources_from([chosen]),
+        reference_chain=_chain_or_none(primary),
     )
+
+
+def _chain_or_none(standard_id: str) -> Optional[dict]:
+    """The citation chain, or nothing if the graph has not been built."""
+    try:
+        node = reference_chain(standard_id, depth=2)
+    except Exception:
+        return None
+    return node if node.get("references") else None
+
+
+# --- uploaded documents -------------------------------------------------
+
+def _passages(text: str, size: int, limit: int) -> List[str]:
+    """
+    Break a document into search-sized pieces, respecting paragraphs.
+
+    Embedding a whole tender document as one query produces a vague
+    average of everything in it. Searching piece by piece keeps each
+    query specific, and a tender covering several products can surface
+    several standards instead of one blurred answer.
+    """
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if not paragraphs:
+        paragraphs = [text.strip()]
+
+    out, buffer = [], ""
+    for paragraph in paragraphs:
+        while len(paragraph) > size:                 # one huge paragraph
+            if buffer:
+                out.append(buffer)
+                buffer = ""
+            out.append(paragraph[:size])
+            paragraph = paragraph[size:]
+        if len(buffer) + len(paragraph) + 1 <= size:
+            buffer = (buffer + "\n" + paragraph).strip()
+        else:
+            if buffer:
+                out.append(buffer)
+            buffer = paragraph
+    if buffer:
+        out.append(buffer)
+    return out[:limit]
+
+
+def _merge_groups(per_passage: List[List[dict]]) -> List[dict]:
+    """
+    Combine per-passage results into one ranking of standards.
+
+    A standard that is relevant to several passages of a tender matters
+    more than one that matched a single line, so hits across passages
+    add to its score the same way multiple chunk hits do within a
+    document.
+    """
+    merged: dict = {}
+    for groups in per_passage:
+        for group in groups:
+            key = group["standard_id"]
+            existing = merged.get(key)
+            if existing is None:
+                copy = dict(group)
+                copy["passage_hits"] = 1
+                merged[key] = copy
+            else:
+                existing["passage_hits"] += 1
+                if group["best_score"] > existing["best_score"]:
+                    existing["best_score"] = group["best_score"]
+                    existing["chunks"] = group["chunks"]
+
+    for group in merged.values():
+        group["score"] = group["best_score"] + math.log1p(group["passage_hits"])
+
+    return sorted(merged.values(), key=lambda g: g["score"], reverse=True)
+
+
+def recommend_from_document(text: str, retriever, llm) -> RecommendResponse:
+    """Recommend standards for an uploaded tender document."""
+    passages = _passages(text, DOC_PASSAGE_CHARS, MAX_DOC_PASSAGES)
+    if not passages:
+        return RecommendResponse(
+            clarification_needed=True,
+            message="No readable text was found in that document.",
+        )
+
+    per_passage = [
+        retriever.search_standards(passage, chunk_pool=20, max_standards=4)
+        for passage in passages
+    ]
+    groups = _merge_groups(per_passage)[:6]
+
+    if not groups:
+        return RecommendResponse(
+            clarification_needed=True,
+            message="Nothing in the indexed standards matches this document.",
+        )
+
+    # A document is never "too brief" - the short-query check that guards
+    # typed input does not apply here.
+    return _finalise(text[:3000], groups, llm)

@@ -19,6 +19,7 @@ Run from the "rag" folder:
     uvicorn backend.main:app --reload
 """
 
+import hmac
 import logging
 import os
 import time
@@ -27,13 +28,16 @@ from contextlib import asynccontextmanager
 from typing import Deque, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import (
+    Depends, FastAPI, File, Header, HTTPException, Request, UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from backend.config import (
     ALLOWED_ORIGINS,
+    API_KEY,
     BACKEND_DIR,
     COLLECTION_NAME,
     INGEST_API_KEY,
@@ -42,9 +46,13 @@ from backend.config import (
     MAX_INGEST_DOCS,
     RATE_LIMIT_REQUESTS,
     MAX_QUERY_CHARS,
+    REQUIRE_API_KEY,
     RATE_LIMIT_WINDOW_SECONDS,
 )
-from backend.recommend import RecommendResponse, recommend
+from backend.documents import UnsupportedDocument, extract_upload
+from backend.recommend import (
+    RecommendResponse, recommend, recommend_from_document,
+)
 
 load_dotenv(BACKEND_DIR / ".env")
 
@@ -83,6 +91,13 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("GROQ_API_KEY is not set - /api/recommend will "
                        "return 503 until it is added to backend/.env")
+    if REQUIRE_API_KEY:
+        logger.info("API key required on /api/ routes.")
+    else:
+        logger.warning(
+            "No API_KEY set - /api/ routes are OPEN to anyone who can reach "
+            "this server. Fine locally; set API_KEY before exposing it."
+        )
     if INGEST_ENABLED and not INGEST_API_KEY:
         logger.warning(
             "INGEST_ENABLED is true but INGEST_API_KEY is empty - "
@@ -136,6 +151,37 @@ async def rate_limit(request: Request, call_next):
 
 # --- auth --------------------------------------------------------------
 
+def _keys_match(supplied: Optional[str], expected: str) -> bool:
+    """
+    Compare two keys without leaking timing information.
+
+    A plain `a == b` stops at the first differing character, so how long
+    it takes hints at how much of the key was right. compare_digest always
+    takes the same time. It matters little at this scale, but it costs
+    nothing to do properly.
+    """
+    if not supplied or not expected:
+        return False
+    return hmac.compare_digest(supplied, expected)
+
+
+def require_api_key(x_api_key: Optional[str] = Header(default=None)) -> None:
+    """
+    Guard for the read routes.
+
+    When API_KEY is empty the routes stay open, which keeps local
+    development and demos frictionless. Setting API_KEY in .env turns the
+    check on for every /api/ route at once.
+    """
+    if not REQUIRE_API_KEY:
+        return
+    if not _keys_match(x_api_key, API_KEY):
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or invalid API key. Send it in an X-API-Key header.",
+        )
+
+
 def require_ingest_key(x_api_key: Optional[str] = Header(default=None)) -> None:
     """Guard for the ingest route."""
     if not INGEST_ENABLED:
@@ -148,7 +194,7 @@ def require_ingest_key(x_api_key: Optional[str] = Header(default=None)) -> None:
             status_code=503,
             detail="Ingestion is not configured.",
         )
-    if x_api_key != INGEST_API_KEY:
+    if not _keys_match(x_api_key, INGEST_API_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
 
@@ -171,6 +217,7 @@ async def health_check():
         "collection": COLLECTION_NAME,
         "chunks": collection_size(store) if store else 0,
         "ingest_enabled": INGEST_ENABLED,
+        "api_key_required": REQUIRE_API_KEY,
     }
 
 
@@ -178,7 +225,8 @@ class RecommendRequest(BaseModel):
     query: str = Field(min_length=1, max_length=MAX_QUERY_CHARS)
 
 
-@app.post("/api/recommend", response_model=RecommendResponse)
+@app.post("/api/recommend", response_model=RecommendResponse,
+          dependencies=[Depends(require_api_key)])
 async def recommend_standards(request: RecommendRequest):
     """
     Recommend the most relevant Indian Standard for a product description
@@ -210,6 +258,77 @@ async def recommend_standards(request: RecommendRequest):
             status_code=500,
             detail="Could not produce a recommendation. Please try again.",
         )
+
+
+@app.post("/api/recommend/upload", response_model=RecommendResponse,
+          dependencies=[Depends(require_api_key)])
+async def recommend_from_uploaded_document(file: UploadFile = File(...)):
+    """
+    Recommend standards for an uploaded tender document.
+
+    Accepts .pdf, .docx, .txt and .md. Scanned PDFs are OCR'd with the
+    same extractor used for the standards corpus.
+
+    The document is searched in passages rather than as one long query:
+    embedding a whole tender at once averages everything in it into a
+    vague vector, and a tender covering several products should be able
+    to surface several standards.
+    """
+    retriever = state.get("retriever")
+    llm = state.get("llm")
+
+    if retriever is None:
+        raise HTTPException(status_code=503, detail="Search index is not ready.")
+    if llm is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Language model is not configured. Set GROQ_API_KEY in .env.",
+        )
+
+    data = await file.read()
+
+    try:
+        text, info = extract_upload(file.filename, data)
+    except UnsupportedDocument as exc:
+        # These messages are written for the user, so pass them through.
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to read upload %r", file.filename)
+        raise HTTPException(status_code=400, detail="Could not read that file.")
+
+    logger.info("Upload %r: %s", file.filename, info)
+
+    try:
+        return recommend_from_document(text, retriever, llm)
+    except Exception:
+        logger.exception("Recommendation failed for upload %r", file.filename)
+        raise HTTPException(
+            status_code=500,
+            detail="Could not produce a recommendation from that document.",
+        )
+
+
+@app.get("/api/standards/references",
+         dependencies=[Depends(require_api_key)])
+async def standard_references(standard_id: str, depth: int = 2):
+    """
+    The citation chain for a standard: what it cites, and what those cite.
+
+    Depth is limited by the corpus - a cited standard we do not hold is a
+    leaf, because we cannot read its own references until it is indexed.
+    """
+    from backend.references import chain, graph_stats
+
+    stats = graph_stats()
+    if not stats["edges"]:
+        raise HTTPException(
+            status_code=503,
+            detail="The reference graph has not been built. Run: "
+                   "python -m backend.build_reference_graph",
+        )
+
+    depth = max(1, min(depth, 4))
+    return {"stats": stats, "chain": chain(standard_id.strip(), depth=depth)}
 
 
 @app.post("/ingest", dependencies=[Depends(require_ingest_key)])

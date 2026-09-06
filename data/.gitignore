@@ -1,0 +1,8 @@
+# Collected data is fetched or generated, not committed.
+*
+!.gitignore
+!README.md
+
+# The exception: the GeM catalogue snapshot is the baseline that change
+# detection compares against, so it is source data rather than output.
+!gem_categories.csv

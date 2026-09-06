@@ -5,9 +5,10 @@ or tender specification. PDFs are indexed locally, a query is answered with
 hybrid retrieval, and an LLM turns the retrieved evidence into a structured
 recommendation with citations.
 
-This document describes the RAG half of the project. The `scraper/` folder
-is a separate component (BIS change detection) and is not yet connected -
-see **Handoff** at the end.
+This document describes the engine - the half that runs per request. The
+BIS change detector lives in `collectors/bis/` and is not yet connected;
+see **Handoff** at the end. `data/README.md` states the contract between
+the two halves.
 
 ---
 
@@ -43,7 +44,7 @@ PRISM takes a product description and returns:
 
 **Not yet built**
 
-- No connection to the `scraper/` component, so live revision status is
+- No connection to the `collectors/bis` component, so live revision status is
   unknown and `status` is `"Unknown"` for every standard
 - No certification data - `certification` always reports "Not determined"
 - No deterministic normative-reference graph; allied standards are read out
@@ -300,19 +301,19 @@ reporting sufficient evidence, `medium` above 0.0, otherwise `low`.
 
 ---
 
-## 10. Handoff to the scraper
+## 10. Handoff to the BIS collector
 
-`scraper/` monitors BIS pages, detects changes and extracts standard
+`collectors/bis/` monitors BIS pages, detects changes and extracts standard
 metadata into SQLite. It is not yet wired in. Two visible seams:
 
 - `status` is `"Unknown"` on every catalog entry
 - `version_status` says revision status is unverified
 
-The catalog already uses the scraper's field names (`standard_id`, `title`,
-`status`, `last_amendment_date`, `publication_date`, `edition`), so
-connecting them is a fill-in rather than a rewrite. The scraper's planned
-reference-extraction would also replace LLM-read allied standards with a
-deterministic normative-reference graph.
+The catalog already uses the collector's field names (`standard_id`,
+`title`, `status`, `last_amendment_date`, `publication_date`, `edition`),
+so connecting them is a fill-in rather than a rewrite. When it lands, the
+collector should write its database into `data/`, which is where the
+engine expects to read it.
 
 ---
 

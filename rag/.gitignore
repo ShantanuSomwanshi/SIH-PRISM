@@ -22,3 +22,10 @@ backend/bm25_index.pkl
 # chroma_db, and chroma_db itself is not committed. Committing it would
 # make a fresh clone skip ingestion and end up with an empty index.
 backend/processed_files.json
+
+# Cached GeM responses. Regenerated on demand, and they go stale.
+backend/gem_cache/
+
+# HTML saved by "gem search --dump" while tuning the page parser.
+*.html
+!frontend/index.html

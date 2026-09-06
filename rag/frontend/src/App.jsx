@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
 
 const API_URL = 'http://127.0.0.1:8000/api/recommend';
+const UPLOAD_URL = 'http://127.0.0.1:8000/api/recommend/upload';
+
+// Sent as X-API-Key when the backend has API_KEY set. Vite only exposes
+// variables beginning with VITE_, and anything it exposes ends up inside
+// the JavaScript the browser downloads - so this is NOT a secret. It
+// stops casual use of an exposed server; it does not hide the key from
+// anyone who opens developer tools. A production portal would call this
+// API from its own server, where a real secret can be kept.
+const API_KEY = import.meta.env.VITE_PRISM_API_KEY || '';
+
+const authHeaders = () => (API_KEY ? { 'X-API-Key': API_KEY } : {});
 
 // Three visible states, not two. A "medium" answer used to look identical
 // to a high-confidence one because the badge simply disappeared.
@@ -27,24 +38,16 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fileName, setFileName] = useState('');
 
-  const handleSearch = async (textToSearch) => {
-    const searchText = (textToSearch || query || '').trim();
-    if (!searchText) return;
-
-    setLoading(true);
+  // Shared response handling for both the typed query and the upload.
+  const runRequest = async (request, busyLabel) => {
+    setLoading(busyLabel);
     setResult(null);
     setError(null);
-
     try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchText }),
-      });
-
+      const res = await request();
       if (!res.ok) {
-        // Surface the server's own message where there is one.
         let detail = 'Request failed with status ' + res.status;
         try {
           const body = await res.json();
@@ -55,11 +58,8 @@ export default function App() {
         }
         throw new Error(detail);
       }
-
       setResult(await res.json());
     } catch (err) {
-      // "Failed to fetch" means the request never reached the server:
-      // backend not running, or blocked by CORS.
       setError(
         err.message === 'Failed to fetch'
           ? 'Could not reach the PRISM API at 127.0.0.1:8000. Check that the backend is running (uvicorn backend.main:app --reload).'
@@ -68,6 +68,34 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUpload = (selected) => {
+    if (!selected) return;
+    setFileName(selected.name);
+    setQuery('');
+    const form = new FormData();
+    form.append('file', selected);
+    // No Content-Type header - the browser sets the multipart boundary.
+    runRequest(
+      () => fetch(UPLOAD_URL, { method: 'POST', headers: authHeaders(), body: form }),
+      'Reading document...'
+    );
+  };
+
+  const handleSearch = (textToSearch) => {
+    const searchText = (textToSearch || query || '').trim();
+    if (!searchText) return;
+    setFileName('');
+    runRequest(
+      () =>
+        fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ query: searchText }),
+        }),
+      'Searching standards...'
+    );
   };
 
   const confidence =
@@ -131,7 +159,7 @@ export default function App() {
               disabled={loading}
               className="bg-red-800 hover:bg-red-900 disabled:bg-gray-400 text-white text-sm font-medium px-5 py-2.5 rounded shadow-sm transition-colors"
             >
-              {loading ? 'Searching standards...' : 'Find Standards'}
+              {loading || 'Find Standards'}
             </button>
             <span className="text-xs text-gray-400">Ctrl+Enter to search</span>
           </div>
@@ -147,6 +175,35 @@ export default function App() {
                 {item}
               </button>
             ))}
+          </div>
+
+          {/* Upload - the problem statement asks for tender DOCUMENTS as an
+              input, not just typed text. Scanned PDFs are OCR'd server-side. */}
+          <div className="mt-4 pt-4 border-t">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Or upload a tender document
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="cursor-pointer bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded">
+                Choose file
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md"
+                  className="hidden"
+                  disabled={Boolean(loading)}
+                  onChange={(e) => {
+                    handleUpload(e.target.files?.[0]);
+                    e.target.value = '';   // allow re-picking the same file
+                  }}
+                />
+              </label>
+              {fileName && (
+                <span className="text-xs text-gray-600 truncate max-w-xs">{fileName}</span>
+              )}
+              <span className="text-xs text-gray-400">
+                PDF, Word, or text. Scanned PDFs are read with OCR, which takes longer.
+              </span>
+            </div>
           </div>
         </div>
 
@@ -228,7 +285,24 @@ export default function App() {
                             not held
                           </span>
                         )}
+                        {s.source === 'reference clause' && (
+                          <span
+                            className="ml-2 text-[10px] uppercase tracking-wide bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded"
+                            title={
+                              s.cited_on_page
+                                ? 'Extracted from the references of the primary standard, page ' + s.cited_on_page
+                                : 'Extracted from the references of the primary standard'
+                            }
+                          >
+                            cited{s.cited_on_page ? ' p' + s.cited_on_page : ''}
+                          </span>
+                        )}
                         <span className="block text-gray-600">{s.role}</span>
+                        {s.edition_note && (
+                          <span className="block text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                            Edition mismatch: {s.edition_note}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>

@@ -1,0 +1,166 @@
+{
+  "description": "Retrieval test set for PRISM. Each query is written the way a procurement official might describe the product, deliberately avoiding the words in the standard's title, so this measures semantic matching rather than string overlap.",
+  "notes": "Cases only cover standards currently in the corpus. Add cases as the corpus grows; a case whose standard is not indexed will always fail and should be marked so.",
+  "cases": [
+    {
+      "query": "nitrile rubber coated nylon fabric for automotive fuel pump diaphragms",
+      "expected": "IS 1001 : 1991"
+    },
+    {
+      "query": "diaphragm material for a petrol pump in a motor vehicle, must resist fuel",
+      "expected": "IS 1001 : 1991"
+    },
+    {
+      "query": "rubber proofed fabric that withstands gasoline and diesel immersion",
+      "expected": "IS 1001 : 1991"
+    },
+    {
+      "query": "flexible fuel resistant coated fabric for diaphragm manufacture",
+      "expected": "IS 1001 : 1991"
+    },
+    {
+      "query": "silver electroplating on brass components for a decorative finish",
+      "expected": "IS 1067 : 2024"
+    },
+    {
+      "query": "protective silver plating for electrical contact surfaces",
+      "expected": "IS 1067 : 2024"
+    },
+    {
+      "query": "coating thickness requirements for silver plated articles",
+      "expected": "IS 1067 : 2024"
+    },
+    {
+      "query": "electrodeposited silver finish for tableware",
+      "expected": "IS 1067 : 2024"
+    },
+    {
+      "query": "plywood chests for packing tea for export",
+      "expected": "IS 10 (Part 1) : 1990"
+    },
+    {
+      "query": "wooden tea packing cases, general requirements",
+      "expected": "IS 10 (Part 1) : 1990"
+    },
+    {
+      "query": "plywood panels and battens for tea chest assembly",
+      "expected": "IS 10 (Part 1) : 1990"
+    },
+    {
+      "query": "packing cases made of plywood for tea consignments",
+      "expected": "IS 10 (Part 1) : 1990"
+    },
+    {
+      "query": "steel bulb flats for shipbuilding structural sections",
+      "expected": "IS 1863 : 1979"
+    },
+    {
+      "query": "hot rolled bulb flat sections and their dimensions",
+      "expected": "IS 1863 : 1979"
+    },
+    {
+      "query": "bulb flat steel for ship hull stiffeners",
+      "expected": "IS 1863 : 1979"
+    },
+    {
+      "query": "rolled steel section with a bulb along one edge",
+      "expected": "IS 1863 : 1979"
+    },
+    {
+      "query": "aluminium alloy ingots for aircraft castings",
+      "expected": "IS 202 : 1981"
+    },
+    {
+      "query": "aerospace grade aluminium casting alloy supply",
+      "expected": "IS 202 : 1981"
+    },
+    {
+      "query": "aluminium castings for aeronautical applications",
+      "expected": "IS 202 : 1981"
+    },
+    {
+      "query": "casting alloy ingot for aircraft component manufacture",
+      "expected": "IS 202 : 1981"
+    },
+    {
+      "query": "test methods for extenders used in paint manufacture",
+      "expected": "IS 33 : 1992"
+    },
+    {
+      "query": "how to sample inorganic pigment consignments for testing",
+      "expected": "IS 33 : 1992"
+    },
+    {
+      "query": "laboratory testing procedure for paint pigments",
+      "expected": "IS 33 : 1992"
+    },
+    {
+      "query": "sampling plan for a pigment supply quality check",
+      "expected": "IS 33 : 1992"
+    },
+    {
+      "query": "antimony trioxide powder for paint manufacture",
+      "expected": "IS 38 : 1976"
+    },
+    {
+      "query": "antimony oxide pigment purity requirements",
+      "expected": "IS 38 : 1976"
+    },
+    {
+      "query": "white antimony oxide for flame retardant coating",
+      "expected": "IS 38 : 1976"
+    },
+    {
+      "query": "supply of antimony oxide for industrial paint",
+      "expected": "IS 38 : 1976"
+    },
+    {
+      "query": "fireclay refractory bricks for furnace lining, moderate duty",
+      "expected": "IS 6 : 1983"
+    },
+    {
+      "query": "refractory brick for boiler lining at moderate heat",
+      "expected": "IS 6 : 1983"
+    },
+    {
+      "query": "moderate heat duty firebricks, group A",
+      "expected": "IS 6 : 1983"
+    },
+    {
+      "query": "fireclay bricks and their pyrometric cone equivalent",
+      "expected": "IS 6 : 1983"
+    },
+    {
+      "query": "index of steel grade designations",
+      "expected": "SP 14 : 1976"
+    },
+    {
+      "query": "reference list for steel designation systems",
+      "expected": "SP 14 : 1976"
+    },
+    {
+      "query": "handbook listing steel grades and their designations",
+      "expected": "SP 14 : 1976"
+    },
+    {
+      "query": "cross reference of steel type designations",
+      "expected": "SP 14 : 1976"
+    },
+    {
+      "query": "survey of screw thread systems and forms",
+      "expected": "SP 42 : 2008"
+    },
+    {
+      "query": "reference document covering screw thread standards",
+      "expected": "SP 42 : 2008"
+    },
+    {
+      "query": "overview of thread forms and pitches",
+      "expected": "SP 42 : 2008"
+    },
+    {
+      "query": "screw thread designation reference handbook",
+      "expected": "SP 42 : 2008"
+    }
+  ]
+}
