@@ -3,7 +3,10 @@
 # ============================================================
 
 import os
+import re
 import time
+import json
+from urllib.parse import parse_qs, unquote, urlparse
 import pandas as pd
 
 from selenium import webdriver
@@ -35,6 +38,8 @@ os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 # ============================================================
 
 df = pd.read_excel(EXCEL_FILE)
+WAIT_SECONDS = int(os.getenv("BIS_WAIT_SECONDS", "10"))
+DOWNLOAD_SECONDS = int(os.getenv("BIS_DOWNLOAD_SECONDS", "30"))
 
 print("Total standards:", len(df))
 
@@ -56,7 +61,7 @@ chrome_options.add_experimental_option(
 
 driver = webdriver.Chrome(options=chrome_options)
 
-wait = WebDriverWait(driver, 20)
+wait = WebDriverWait(driver, WAIT_SECONDS)
 
 
 # ============================================================
@@ -64,8 +69,7 @@ wait = WebDriverWait(driver, 20)
 # ============================================================
 
 driver.get(BIS_URL)
-
-time.sleep(3)
+wait.until(EC.presence_of_element_located((By.ID, "isSearch")))
 
 
 # ============================================================
@@ -79,6 +83,8 @@ for index, row in df.iterrows():
     # --------------------------------------------------------
 
     is_number = str(row["IS_Number"]).strip()
+    standard_number_match = re.search(r"\d{1,6}", is_number)
+    standard_number = standard_number_match.group(0) if standard_number_match else is_number
 
     print("\n======================================")
     print(f"Processing {index + 1}/{len(df)}")
@@ -113,9 +119,9 @@ for index, row in df.iterrows():
 
         search_tab.clear()
 
-        search_tab.send_keys(is_number)
+        search_tab.send_keys(standard_number)
 
-        print(f"Entered: {is_number}")
+        print(f"Entered search value: {standard_number} (selected ID: {is_number})")
 
 
         # ====================================================
@@ -136,7 +142,7 @@ for index, row in df.iterrows():
 
         print("Search clicked.")
 
-        time.sleep(3)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//a[@title]")))
 
 
         # ====================================================
@@ -149,21 +155,26 @@ for index, row in df.iterrows():
             EC.presence_of_element_located(
                 (
                     By.XPATH,
-                    f"//a[@title='{is_number}']"
+                    f"//a[@title='{is_number}'] | //a[contains(@title, '{standard_number}')] | //*[@title and contains(@title, '{standard_number}')]"
                 )
             )
         )
 
         print("Standard result found.")
+        result_title = top_standard.get_attribute("title") or is_number
+        result_text = top_standard.text or result_title
+        result_href = top_standard.get_attribute("href") or ""
+        print("Matched result:", {
+            "title": result_title,
+            "text": result_text,
+            "href": result_href,
+        })
 
         # Scroll result into view
         driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center'});",
             top_standard
         )
-
-        time.sleep(1)
-
 
         # Try normal click
         try:
@@ -180,8 +191,26 @@ for index, row in df.iterrows():
 
         print("Standard selected.")
 
-        time.sleep(3)
+        detail_url = result_href or driver.current_url
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@title='Download PDF']")))
+        detail_text = " ".join(driver.find_element(By.TAG_NAME, "body").text.split())
+        standard_id = unquote(parse_qs(urlparse(detail_url).query).get("standardNumber", [is_number])[0])
+        current_artifact = {
+            "standard_id": standard_id,
+            "title": is_number,
+            "status": "UNKNOWN",
+            "source_url": detail_url,
+            "raw_text_excerpt": detail_text[:5000],
+        }
+        artifact_path = os.path.join(DOWNLOAD_FOLDER, f"bis_standard_{index + 1}.json")
+        with open(artifact_path, "w", encoding="utf-8") as artifact_file:
+            json.dump(current_artifact, artifact_file, ensure_ascii=False, indent=2)
+        print(f"Current BIS detail captured: {artifact_path}")
 
+        driver.get(BIS_URL)
+        wait.until(EC.presence_of_element_located((By.ID, "isSearch")))
+        print("BIS search page ready.")
+        continue
 
         # ====================================================
         # STEP 5: CLICK COMPOSITION
@@ -201,15 +230,13 @@ for index, row in df.iterrows():
 
         print("Composition clicked.")
 
-        time.sleep(2)
-
-
         # ====================================================
         # STEP 6: CLICK DOWNLOAD
         # ====================================================
 
         print("Waiting for download button...")
 
+        before_download = set(os.listdir(DOWNLOAD_FOLDER))
         download_button = wait.until(
             EC.element_to_be_clickable(
                 (By.XPATH, "//button[@title='Download Excel']")
@@ -227,7 +254,14 @@ for index, row in df.iterrows():
         # STEP 7: WAIT FOR DOWNLOAD
         # ====================================================
 
-        time.sleep(5)
+        deadline = time.time() + DOWNLOAD_SECONDS
+        while time.time() < deadline:
+            temporary_downloads = [name for name in os.listdir(DOWNLOAD_FOLDER) if name.endswith('.crdownload')]
+            current_downloads = set(os.listdir(DOWNLOAD_FOLDER))
+            new_downloads = current_downloads - before_download
+            if new_downloads and not temporary_downloads:
+                break
+            time.sleep(0.25)
 
         print(f"Completed: {is_number}")
 
@@ -247,8 +281,6 @@ for index, row in df.iterrows():
             )
         )
 
-        time.sleep(2)
-
         print("BIS search page ready.")
 
 
@@ -261,6 +293,13 @@ for index, row in df.iterrows():
         print(f"\nFAILED: {is_number}")
         print("Error type:", type(e).__name__)
         print("Error:", repr(e))
+        try:
+            visible_text = " ".join(driver.find_element(By.TAG_NAME, "body").text.split())
+            print("BIS page response:", visible_text[:1000])
+            titled = [element.get_attribute("title") for element in driver.find_elements(By.XPATH, "//*[@title]")]
+            print("BIS titled elements:", [title for title in titled if title][:30])
+        except Exception as diagnostic_error:
+            print("Could not collect BIS response diagnostics:", repr(diagnostic_error))
 
         # ----------------------------------------------------
         # IMPORTANT:
@@ -279,8 +318,6 @@ for index, row in df.iterrows():
                     (By.ID, "isSearch")
                 )
             )
-
-            time.sleep(2)
 
             print("BIS page reset successfully.")
 
