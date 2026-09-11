@@ -8,6 +8,15 @@ class ScraperAdapter:
     def __init__(self, settings): self.s=settings
     def run_for_ids(self, ids):
         if not ids: return []
+        # Fail naming the path that was actually tried. The legacy scraper
+        # was briefly nested inside sql/, which left this pointing at
+        # nothing and surfaced as an unexplained subprocess error several
+        # layers up.
+        if not self.s.scraper_script.exists():
+            raise FileNotFoundError(
+                f'Legacy scraper not found at {self.s.scraper_script}. '
+                f'Set SCRAPER_SCRIPT in collectors/bis/.env, or put '
+                f'download_standards.py in {self.s.scraper_cwd}.')
         with tempfile.TemporaryDirectory(prefix='bis_scrape_') as td:
             work=Path(td); shutil.copy2(self.s.scraper_script,work/'download_standards.py')
             wb=Workbook(); ws=wb.active; ws.title='Sheet1'; ws.append(['IS_Number'])

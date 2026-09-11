@@ -28,7 +28,7 @@ from typing import List
 
 from rank_bm25 import BM25Okapi
 
-from backend.config import BACKEND_DIR, MANIFEST_PATH, RERANKER_MODEL
+from backend.config import BACKEND_DIR, MANIFEST_PATH, RERANKER_MAX_TOKENS, RERANKER_MODEL
 from backend.embeddings import collection_size, get_vector_store
 
 BM25_CACHE_PATH = BACKEND_DIR / "bm25_index.pkl"
@@ -53,8 +53,13 @@ class PrismHybridRetriever:
         self._load_corpus()
 
         self._log("Loading the reranker...")
+        import torch
         from sentence_transformers import CrossEncoder
-        self.reranker = CrossEncoder(RERANKER_MODEL)
+        self.reranker = CrossEncoder(
+            RERANKER_MODEL,
+            max_length=RERANKER_MAX_TOKENS,
+            activation_fn=torch.nn.Identity(),
+        )
         self._log("Ready.\n")
 
     def _log(self, message: str) -> None:
@@ -202,7 +207,8 @@ class PrismHybridRetriever:
             return []
 
         pairs = [[query, hit["content"]] for hit in fused]
-        for hit, score in zip(fused, self.reranker.predict(pairs)):
+        # batch_size=8: same scores as the default 32, far lower peak memory.
+        for hit, score in zip(fused, self.reranker.predict(pairs, batch_size=8)):
             hit["rerank_score"] = float(score)
 
         fused.sort(key=lambda hit: hit["rerank_score"], reverse=True)

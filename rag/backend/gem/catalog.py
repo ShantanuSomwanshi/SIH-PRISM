@@ -55,10 +55,19 @@ def vocabulary() -> Dict[str, int]:
     Used to phrase a search in GeM's own words. A term from a tender that
     appears in no category name will not help a keyword search: "downlight"
     occurs zero times, while "luminaire" occurs eight.
+
+    Two characters, not three. A three-character floor reported "dc", "ac"
+    and "ev" as words GeM has never used - while GeM has a category called
+    "DC EV Charging Station", and those two letters are the whole
+    difference between the right charger and the wrong one. That is not
+    just weak ranking: it makes the system tell an officer, with
+    confidence, that their word appears nowhere in the marketplace.
+    (generalise() in search.py applies its own len(w) > 2 filter before
+    consulting this, so its behaviour is unchanged.)
     """
     counts: Dict[str, int] = {}
     for category in load_categories():
-        for word in set(re.findall(r"[a-z0-9]{3,}", category.product_name.lower())):
+        for word in set(re.findall(r"[a-z0-9]{2,}", category.product_name.lower())):
             counts[word] = counts.get(word, 0) + 1
     return counts
 

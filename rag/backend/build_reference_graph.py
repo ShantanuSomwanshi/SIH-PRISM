@@ -28,7 +28,9 @@ def _corpus_index(catalog: dict) -> dict:
     for entry in catalog.values():
         number = str(entry.get("number") or "").strip()
         if number:
-            index[(number, str(entry.get("part") or ""))] = entry
+            key = (number, str(entry.get("part") or ""),
+                   str(entry.get("section") or ""))
+            index[key] = entry
     return index
 
 
@@ -58,7 +60,7 @@ def build(verbose: bool = False) -> int:
         )
 
         for ref in refs:
-            key = (ref["number"], ref["part"] or "")
+            key = (ref["number"], ref["part"] or "", ref["section"] or "")
             target = held.get(key)
 
             edge = {
@@ -66,6 +68,7 @@ def build(verbose: bool = False) -> int:
                 "from_file": filename,
                 "to_number": ref["number"],
                 "to_part": ref["part"],
+                "to_section": ref["section"],
                 "cited_year": ref["cited_year"],
                 "cited_title": ref["cited_title"],
                 "role": ref["role"],

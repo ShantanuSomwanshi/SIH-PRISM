@@ -17,10 +17,15 @@ import re
 # Case-SENSITIVE on the prefix. Using IGNORECASE here is what made an
 # earlier parser read the word "is" in "...is 2 mm..." as a standard
 # number. The lookbehind stops us matching inside BIS or HIS.
+# The Section group matters: "(Part 5/Section 2)" without it fails to
+# close the bracket, so the Part is dropped and the year with it. Part 5
+# Section 1 and Section 2 are different documents and must not merge.
 REF_RE = re.compile(
     r"(?<![A-Za-z0-9])(IS|1S|SP)\s*[:.]?\s*"
     r"(\d{1,5})"
-    r"(?:\s*\(\s*Part\s*([0-9IVXivx]+)\s*\))?"
+    r"(?:\s*\(\s*Part\s*([0-9IVXivx]+)"
+    r"(?:\s*[/,]?\s*Sec(?:tion)?\s*([0-9IVXivx]+))?"
+    r"\s*\))?"
     r"(?:\s*[-:.~•‐–—]\s*|\s+)?"
     r"((?:19|20)\d{2})?"
 )
@@ -118,7 +123,8 @@ def extract_references(pages, self_number, self_part=None):
             for match in REF_RE.finditer(line):
                 number = match.group(2)
                 part = match.group(3)
-                year = match.group(4)
+                section = match.group(4)
+                year = match.group(5)
 
                 # Skip the document citing itself - it appears in the page
                 # header of nearly every page of older standards.
@@ -134,10 +140,11 @@ def extract_references(pages, self_number, self_part=None):
                 # produced "titles" like "*. The number of significant
                 # places retained".
                 title = _title_after(line, match.end()) if in_clause else None
-                key = (number, part or "")
+                key = (number, part or "", section or "")
                 candidate = {
                     "number": number,
                     "part": part,
+                    "section": section,
                     "cited_year": year,
                     "cited_title": title,
                     "page": page_no,
@@ -167,5 +174,5 @@ def extract_references(pages, self_number, self_part=None):
         else:
             ref["confidence"] = "low"
         out.append(ref)
-    out.sort(key=lambda r: (int(r["number"]), r["part"] or ""))
+    out.sort(key=lambda r: (int(r["number"]), r["part"] or "", r["section"] or ""))
     return out

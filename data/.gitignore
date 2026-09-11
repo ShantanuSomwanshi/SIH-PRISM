@@ -1,8 +1,17 @@
-# Collected data is fetched or generated, not committed.
+# Collected and source data: fetched, generated, or supplied. None of it
+# is committed - it is large, and tender and standards documents carry
+# personal data (named officials, email addresses, download watermarks).
+
+# Ignore everything...
 *
+
+# ...but keep the folder structure and its documentation. The "!*/" line
+# matters: git will not look inside an ignored directory, so without it
+# the READMEs below would stay invisible.
+!*/
 !.gitignore
 !README.md
 
-# The exception: the GeM catalogue snapshot is the baseline that change
-# detection compares against, so it is source data rather than output.
+# The GeM catalogue snapshot is the baseline that change detection
+# compares against, so it counts as source data rather than output.
 !gem_categories.csv

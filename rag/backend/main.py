@@ -221,8 +221,24 @@ async def health_check():
     }
 
 
+class ClarifyAnswer(BaseModel):
+    """One answer to one clarifying question, echoed back by the client."""
+    label: str = Field(default="", max_length=200)
+    # The standard ids this answer keeps. Server-side this can only NARROW
+    # candidates that retrieval returned on this request's own evidence, so
+    # a client cannot use it to introduce a standard of its own choosing.
+    select: List[str] = Field(default_factory=list, max_length=20)
+
+
 class RecommendRequest(BaseModel):
     query: str = Field(min_length=1, max_length=MAX_QUERY_CHARS)
+    # Cross-questioning is stateless: the client returns the answers it was
+    # given and the dimensions already covered, rather than the server
+    # holding a session. Nothing here is trusted beyond narrowing.
+    answers: List[ClarifyAnswer] = Field(default_factory=list, max_length=8)
+    asked: List[str] = Field(default_factory=list, max_length=8)
+    include_tender: bool = True
+    include_gem: bool = True
 
 
 @app.post("/api/recommend", response_model=RecommendResponse,
@@ -251,7 +267,13 @@ async def recommend_standards(request: RecommendRequest):
         raise HTTPException(status_code=400, detail="Query is empty.")
 
     try:
-        return recommend(query, retriever, llm)
+        return recommend(
+            query, retriever, llm,
+            answers=[a.model_dump() for a in request.answers],
+            asked=request.asked,
+            include_tender=request.include_tender,
+            include_gem=request.include_gem,
+        )
     except Exception:
         logger.exception("Recommendation failed for query %r", query[:100])
         raise HTTPException(

@@ -112,10 +112,15 @@ first use into `~/.cache/huggingface`, not into the project.
 
 ```powershell
 python -m backend.build_catalog        # draft the standards catalog
-python -m backend.rag_engine           # ingest new PDFs
+python -m backend.rag_engine           # ingest new or changed PDFs only
+python -m backend.rag_engine --prune   # also remove PDFs deleted from data/
 python -m backend.rag_engine --rebuild # wipe and rebuild from scratch
-python -m backend.rag_engine --dry-run # extract and chunk without embedding
+python -m backend.rag_engine --dry-run # show the plan; extract and chunk, store nothing
 ```
+
+A normal run is incremental: files already in the index are skipped without
+loading the embedding model, so adding one PDF to the corpus embeds that one
+PDF. See **Which files get ingested** in section 5.
 
 ### Run
 
@@ -152,12 +157,42 @@ For each PDF, **page by page**:
 3. If what remains is under `MIN_CHARS_PER_PAGE` (default 200), treat the
    page as a scan: render it with PyMuPDF at `OCR_DPI` (default 300) and
    read it with Tesseract. Keep whichever result has more text.
-4. Cache the raw OCR output in `ocr_cache/`, keyed to the file's SHA-256 so
-   replacing a PDF invalidates it automatically.
+4. If instead the page has plenty of text but that text is **mis-encoded**
+   (see below), OCR it as well.
+5. Cache the raw OCR output in `ocr_cache/`, keyed to the file's SHA-256 so
+   replacing a PDF invalidates it automatically, and to `OCR_LANG` so
+   adding a language pack does not keep serving the old reading. Only
+   corpus files (PDFs inside `DATA_DIR`) are cached - see **Uploaded
+   documents** below.
 
 The check is **per page, not per file**. Mixed documents are common: IS 1067
 is a born-digital 2024 standard with one scanned page in the middle. A
 per-file check would call it healthy and lose that page silently.
+
+### Mis-encoded Hindi pages
+
+Older BIS PDFs set their Hindi in a legacy font (Krutidev, Chanakya and
+relatives) from before Unicode. These fonts paint Devanagari glyphs onto
+ordinary Latin codepoints, so `भारतीय मानक` extracts as `Hkkjrh; ekud`.
+The text is not missing, it is mis-encoded - which means the "too little
+text" rule never fires and a page of pure noise goes straight into the
+index. No model can undo this, because the mapping differs per font, but
+the *rendered* page is correct Devanagari, so OCR reads it fine.
+
+Detection is the delicate part. The obvious test - "unusual characters on
+the page" - is wrong: on IS 10262 it flagged 9 of 44 pages, and 8 of them
+were ordinary English mix-design pages full of `=`, `×`, `+` and `≈`.
+OCR-ing those would have replaced good text with worse text. The rule that
+works uses two signals, both about the shape of *words*, which mathematics
+does not produce: glyph substitutes appearing inside words, and runs of
+four or more letters with no vowel at all. On the same file that flags
+page 1 only, which is correct.
+
+Reading these pages needs the Tesseract Hindi pack and `OCR_LANG=eng+hin`.
+Without it the OCR result comes back with no Devanagari in it, the page is
+marked `legacy-font` and **left out of the index** rather than swapped for
+a second kind of gibberish. `ingestion_report.json` reports how many pages
+that was. `OCR_LEGACY_FONTS=false` skips the check entirely.
 
 Chunking is also per page (1000 characters, 200 overlap), so a chunk never
 straddles a page boundary and its page number is always correct. Each chunk
@@ -166,11 +201,56 @@ in the chunk's own content.
 
 Every chunk stores: `standard_id`, `title`, `doc_type`, `number`, `part`,
 `publication_date`, `edition`, `status`, `source` (bare filename),
-`page`, `total_pages`, `extraction_method`, `chunk_id`, `confidence`.
+`page`, `total_pages`, `extraction_method`, `chunk_id`, `confidence`,
+`source_sha256` (hash of the PDF it came from) and `source_chunks` (how
+many chunks that PDF produced).
 
 `ingestion_report.json` records characters per page, OCR page count and
 watermark characters removed for each file, and warns on anything that
-extracted poorly.
+extracted poorly. It describes the **whole index**: a run updates the
+entries for the files it processed and keeps the rest, so adding one PDF
+does not shrink the report to that one file.
+
+### Which files get ingested
+
+`processed_files.json` is the list of ingested files - filename, SHA-256,
+chunk count, time. A file is skipped only when the index confirms it:
+
+- If its chunks carry `source_sha256` equal to the file's current hash, and
+  there are exactly `source_chunks` of them, it is fully and currently
+  indexed. The index vouches for itself, so a lost manifest is rebuilt
+  rather than triggering a re-embed.
+- Chunks ingested before those fields existed are checked against the
+  manifest instead: same hash, same chunk count.
+
+Anything else is re-ingested, with the reason printed: a new file, a
+changed file, an index holding only some of a file's chunks (an
+interrupted run), or a manifest listing files the index does not have
+(`chroma_db` deleted or swapped). Trusting the manifest alone used to skip
+every file in that last case and leave the index empty.
+
+**Replacing a PDF removes its old chunks.** Chunk ids are
+`<file>::p<page>::c<n>` and Chroma upserts by id, so a new version
+overwrites the ids it reproduces - but if it has fewer pages, or a page
+splits into fewer pieces, the old version's extra chunks used to stay
+searchable. After the new chunks are stored, any chunk of that file whose
+id the new version did not produce is deleted.
+
+**Removing a PDF from `data/`** does not delete its chunks by default; the
+run warns that they are still searchable. `--prune` removes them, along
+with their manifest and report entries. It is opt-in because a
+mis-set `DOCUMENTS_DIR` would otherwise empty the index in one run.
+
+### Uploaded documents
+
+`POST /api/recommend/upload` reads a PDF **entirely in memory**
+(`extract_pdf_bytes`). Nothing from a tender is written to disk: no temp
+file and no OCR cache entry. The upload route used to save each tender to
+a temp file named `upload.pdf`; because the OCR cache is named after the
+file, every scanned tender's text ended up in `ocr_cache/upload.json`,
+outliving the request, overwritten by the next upload, and shared by two
+uploads arriving together. `extract_pdf` on a path also skips the cache
+for any file outside `DATA_DIR`.
 
 ### Current corpus
 
@@ -270,7 +350,7 @@ recommendation or a clarifying question.
 
 ### When it asks instead of answering
 
-Two independent triggers:
+Three independent triggers:
 
 1. **Too brief.** Fewer than `MIN_QUERY_TERMS` (3) meaningful words after
    removing filler. This is not about retrieval quality: "paint" matches
@@ -278,9 +358,70 @@ Two independent triggers:
    testing it, or packaging it. Similarity is not sufficiency.
 2. **Too close to call.** Top score below `WEAK_MATCH_SCORE` (0.0) *and*
    the top two candidates within `AMBIGUOUS_MARGIN` (1.5).
+3. **Same-family tie.** The top two candidates are different *parts* of the
+   same standard, within `AMBIGUOUS_MARGIN`. This needs its own trigger
+   because trigger 2 requires a weak score, and "household zig-zag sewing
+   machine head" matches all four parts of IS 15449 *strongly*. Retrieval
+   is working perfectly and the answer is still undetermined.
 
 Confidence is `high` at or above `STRONG_MATCH_SCORE` (4.0) with the model
 reporting sufficient evidence, `medium` above 0.0, otherwise `low`.
+
+### Cross-questioning (`clarify.py`)
+
+The question is derived from what the *candidates* disagree about, not from
+a fixed list. Three dimensions, in order of how hard the ambiguity is:
+
+- **Part** - candidates are parts of one standard. IS 15449 splits into
+  General / Accuracy / Sewing / Durability requirements: four documents,
+  one product. No further description of the sewing machine can separate
+  them; only naming the aspect can.
+- **Role** - candidates are different *kinds* of document. Buying a
+  product, testing it and maintaining it are three different standards for
+  the same object, read out of the title ("Methods of test for...",
+  "Code of practice for...").
+- **Product** - candidates are genuinely different products. The fallback.
+
+The rule that stops this becoming a form: **never ask a question whose
+answer cannot change the outcome.** A dimension the candidates agree on is
+never raised, and when nothing is left to disambiguate, nothing is asked.
+
+The API stays **stateless** across rounds. The client returns the answers
+it was given plus the dimensions already covered; the server holds no
+session. Answers *narrow the candidate set* rather than only being appended
+to the query - but only as an intersection with what retrieval returned on
+this request's own evidence, so a client can narrow and never inject. An
+answer that would eliminate every candidate is ignored rather than obeyed.
+
+### Draft tender clauses (`tender.py`)
+
+Templates and data - deliberately **not** a second call to the language
+model. A model asked to "write a testing clause" produces fluent text about
+sampling plans and acceptance criteria that reads exactly like the grounded
+clauses and is invented. In a document that becomes a contract, that is the
+worst available failure and it is not detectable by reading.
+
+So every clause is either grounded in a retrieved page or a visible
+`[BRACKETED]` blank, and there is no third category. Standards the model
+proposed are quarantined in their own clause, labelled as not read out of
+the references clause. Certification and current-edition status appear as
+verification steps addressed to the officer, never as claims.
+
+This drafts language for the officer to edit. It does not write the tender.
+
+### GeM category suggestion (`gem/suggest.py`)
+
+Two tiers of unequal confidence. **Exact**: the GeM category's own name
+cites the standard, so the marketplace has already made the link and we
+only read it back. **Keyword**: no category cites it, so terms are matched
+by IDF - a word used by six categories is worth far more than one used by
+five hundred.
+
+The honest signal matters more than the ranking: some words do not exist in
+GeM's vocabulary at all ("downlight" and "recess" occur zero times in 9,761
+category names). When the officer's words are absent, the result says so,
+because keyword search *on GeM itself* would fail the same way. That
+absence is the argument for semantic matching.
 
 ---
 
@@ -323,7 +464,9 @@ engine expects to read it.
   are reported as unknown, never invented.
 - Source metadata and standard identifiers are preserved through ingestion,
   retrieval, reranking and serialisation so answers stay auditable.
-- Ingestion is repeatable and hash-based; a changed PDF is re-ingested.
+- Ingestion is repeatable and hash-based; a changed PDF is re-ingested and
+  its old chunks removed. A file is skipped only when the index confirms it.
+- Uploaded documents never touch disk.
 - The collection is `prism_standards` and the model is `BAAI/bge-m3`.
   Changing either requires a full reindex - vectors from different models
   are not comparable.

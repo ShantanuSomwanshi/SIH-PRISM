@@ -7,10 +7,13 @@ the first two; this covers the third.
 
 PDFs go through the same extractor the corpus uses, so a scanned tender
 is OCR'd automatically - exactly as a scanned standard is.
+
+An upload is read entirely in memory. Nothing from it is written to disk -
+no temp file and no OCR cache entry - so a tender does not outlive the
+request that carried it.
 """
 
 import io
-import tempfile
 from pathlib import Path
 
 from backend.config import MAX_DOC_PAGES, MAX_UPLOAD_BYTES
@@ -54,13 +57,18 @@ def _read_docx(data: bytes) -> str:
 
 
 def _read_pdf(data: bytes) -> tuple:
-    """Write to a temp file so the normal extractor can open it."""
-    from backend.pdf_extract import extract_pdf
+    """
+    Read an uploaded PDF from memory.
 
-    with tempfile.TemporaryDirectory() as folder:
-        path = Path(folder) / "upload.pdf"
-        path.write_bytes(data)
-        result = extract_pdf(path, verbose=False, max_pages=MAX_DOC_PAGES)
+    This used to write the bytes to a temp file called "upload.pdf" and
+    pass that to extract_pdf(). The OCR cache is named after the file, so
+    every scanned tender's text was saved to ocr_cache/upload.json and left
+    there - overwritten by the next upload, and mixed up between two
+    uploads arriving together. extract_pdf_bytes() never caches.
+    """
+    from backend.pdf_extract import extract_pdf_bytes
+
+    result = extract_pdf_bytes(data, max_pages=MAX_DOC_PAGES)
 
     text = "\n\n".join(page.text for page in result.pages if page.text)
     return text, {

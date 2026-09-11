@@ -1,0 +1,753 @@
+{
+  "summary": {
+    "cases": 72,
+    "recall@1": 0.8888888888888888,
+    "recall@3": 0.9583333333333334,
+    "recall@5": 0.9861111111111112,
+    "mrr": 0.9298611111111111,
+    "not_found": 1
+  },
+  "results": [
+    {
+      "query": "underground mine haulage scraper for dragging broken ore along the floor",
+      "expected": "IS 10202 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 10202 : 2025",
+        "IS 3459 : 2004",
+        "IS 10306 : 2025",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 3455 : 1971"
+      ]
+    },
+    {
+      "query": "rope operated drag equipment for gathering loose rock in a mine",
+      "expected": "IS 10202 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 10202 : 2025",
+        "IS 10306 : 2025",
+        "IS 3459 : 2004"
+      ]
+    },
+    {
+      "query": "hoe type dragline bucket attachment used in mineral extraction",
+      "expected": "IS 10202 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 10202 : 2025",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 10262 : 2019",
+        "IS 3451 (Part 1) : 2024",
+        "IS 14207 : 2025"
+      ]
+    },
+    {
+      "query": "procurement of scrapers for coal mine loading operations",
+      "expected": "IS 10202 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 10202 : 2025",
+        "IS 15449 (Part 1) : 2024",
+        "IS 3451 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "how to work out cement, sand and aggregate quantities for M30 grade",
+      "expected": "IS 10262 : 2019",
+      "rank": 1,
+      "returned": [
+        "IS 10262 : 2019"
+      ]
+    },
+    {
+      "query": "proportioning a concrete mixture with fly ash replacing part of the cement",
+      "expected": "IS 10262 : 2019",
+      "rank": 1,
+      "returned": [
+        "IS 10262 : 2019"
+      ]
+    },
+    {
+      "query": "selecting the water cement ratio and trial mixes for structural concrete",
+      "expected": "IS 10262 : 2019",
+      "rank": 1,
+      "returned": [
+        "IS 10262 : 2019"
+      ]
+    },
+    {
+      "query": "guidelines for designing ready mixed concrete for a bridge deck",
+      "expected": "IS 10262 : 2019",
+      "rank": 1,
+      "returned": [
+        "IS 10262 : 2019"
+      ]
+    },
+    {
+      "query": "adjustable sliding bevel hand tool for woodworking",
+      "expected": "IS 13345 : 1992",
+      "rank": 1,
+      "returned": [
+        "IS 13345 : 1992",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 3455 : 1971",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "carpenter's tool for marking and transferring angles onto timber",
+      "expected": "IS 13345 : 1992",
+      "rank": 1,
+      "returned": [
+        "IS 13345 : 1992",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 9246 : 2022",
+        "IS 15449 (Part 2) : 2024",
+        "IS 10306 : 2025"
+      ]
+    },
+    {
+      "query": "bevel gauge with a steel blade and stock for joinery work",
+      "expected": "IS 13345 : 1992",
+      "rank": 1,
+      "returned": [
+        "IS 13345 : 1992",
+        "IS 3455 : 1971",
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "angle setting hand tool used in carpentry workshops",
+      "expected": "IS 13345 : 1992",
+      "rank": 1,
+      "returned": [
+        "IS 13345 : 1992",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 3455 : 1971",
+        "IS 3451 (Part 1) : 2024",
+        "IS 10202 : 2025"
+      ]
+    },
+    {
+      "query": "carbon paper sheets for taking duplicate copies by hand",
+      "expected": "IS 3450 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3450 : 2022",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 3455 : 1971"
+      ]
+    },
+    {
+      "query": "coated transfer paper for handwritten receipts and forms",
+      "expected": "IS 3450 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3450 : 2022",
+        "IS 1296 : 2024",
+        "IS 3451 (Part 1) : 2024",
+        "IS 10306 : 2025",
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "one time carbon sheets for manual record keeping in an office",
+      "expected": "IS 3450 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3450 : 2022",
+        "IS 17017 (Part 23) : 2026",
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "supply of carbon paper intended for use with a ball pen",
+      "expected": "IS 3450 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3450 : 2022",
+        "IS 17017 (Part 23) : 2026",
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "code of practice for storing and cleaning paint brushes",
+      "expected": "IS 3451 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 3451 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "how to look after brushes so they last longer in service",
+      "expected": "IS 3451 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 3451 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "maintenance guidance for bristle brushes after use with solvents",
+      "expected": "IS 3451 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 3451 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "care instructions for brushes issued to a painting contractor",
+      "expected": "IS 3451 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 3451 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "practice for using limit gauges on plain cylindrical parts",
+      "expected": "IS 3455 : 1971",
+      "rank": 1,
+      "returned": [
+        "IS 3455 : 1971"
+      ]
+    },
+    {
+      "query": "go and no go gauge selection for plain holes and shafts",
+      "expected": "IS 3455 : 1971",
+      "rank": 1,
+      "returned": [
+        "IS 3455 : 1971"
+      ]
+    },
+    {
+      "query": "inspection gauging of workpieces that have no threads",
+      "expected": "IS 3455 : 1971",
+      "rank": 1,
+      "returned": [
+        "IS 3455 : 1971"
+      ]
+    },
+    {
+      "query": "gauge design and tolerance practice for plain dimensions",
+      "expected": "IS 3455 : 1971",
+      "rank": 1,
+      "returned": [
+        "IS 3455 : 1971"
+      ]
+    },
+    {
+      "query": "test method for water soluble content in textile material",
+      "expected": "IS 3456 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3456 : 2022",
+        "IS 10262 : 2019"
+      ]
+    },
+    {
+      "query": "laboratory procedure to measure soluble matter extracted from fabric",
+      "expected": "IS 3456 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3456 : 2022",
+        "IS 3450 : 2022",
+        "IS 14207 : 2025",
+        "IS 10262 : 2019",
+        "IS 3455 : 1971"
+      ]
+    },
+    {
+      "query": "determining how much of a cloth sample dissolves in water",
+      "expected": "IS 3456 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3456 : 2022",
+        "IS 10262 : 2019",
+        "IS 3451 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "quality test for water extractable substances in textiles",
+      "expected": "IS 3456 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 3456 : 2022",
+        "IS 10262 : 2019",
+        "IS 3450 : 2022",
+        "IS 14207 : 2025",
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "small diameter steel wire rope for light lifting duty",
+      "expected": "IS 3459 : 2004",
+      "rank": 1,
+      "returned": [
+        "IS 3459 : 2004",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 10306 : 2025",
+        "IS 9246 : 2022"
+      ]
+    },
+    {
+      "query": "stranded wire rope of small size used for control cables",
+      "expected": "IS 3459 : 2004",
+      "rank": 1,
+      "returned": [
+        "IS 3459 : 2004",
+        "IS 17017 (Part 23) : 2026",
+        "IS 3455 : 1971",
+        "IS 15449 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "specification for thin steel ropes fitted in machinery",
+      "expected": "IS 3459 : 2004",
+      "rank": 1,
+      "returned": [
+        "IS 3459 : 2004",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 9246 : 2022",
+        "IS 13345 : 1992"
+      ]
+    },
+    {
+      "query": "supply of small wire rope with a fibre core",
+      "expected": "IS 3459 : 2004",
+      "rank": 1,
+      "returned": [
+        "IS 3459 : 2004",
+        "IS 17017 (Part 23) : 2026",
+        "IS 3456 : 2022"
+      ]
+    },
+    {
+      "query": "feed lifting rock shaft for a domestic sewing machine",
+      "expected": "IS 10306 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 10306 : 2025",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "the shaft that raises the feed dog inside a sewing machine",
+      "expected": "IS 10306 : 2025",
+      "rank": 2,
+      "returned": [
+        "IS 15449 (Part 2) : 2024",
+        "IS 10306 : 2025",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "replacement shaft assembly for a household sewing machine feed mechanism",
+      "expected": "IS 10306 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 10306 : 2025",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 14207 : 2025"
+      ]
+    },
+    {
+      "query": "sewing machine internal shaft controlling feed lift motion",
+      "expected": "IS 10306 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 10306 : 2025",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "presser foot for a domestic sewing machine",
+      "expected": "IS 1296 : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 1296 : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "foot attachment that holds fabric down against the feed dog",
+      "expected": "IS 1296 : 2024",
+      "rank": 5,
+      "returned": [
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 10306 : 2025",
+        "IS 1296 : 2024"
+      ]
+    },
+    {
+      "query": "sewing machine part that presses cloth while stitching",
+      "expected": "IS 1296 : 2024",
+      "rank": 4,
+      "returned": [
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 1296 : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "procurement of presser feet for household sewing machines",
+      "expected": "IS 1296 : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 1296 : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 14207 : 2025",
+        "IS 10306 : 2025"
+      ]
+    },
+    {
+      "query": "open type shuttle race sub assembly for a household sewing machine",
+      "expected": "IS 14207 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 14207 : 2025",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "shuttle race body and bobbin case carrier for a domestic machine",
+      "expected": "IS 14207 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 14207 : 2025",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 9246 : 2022"
+      ]
+    },
+    {
+      "query": "sewing machine hook race sub assembly of the open type",
+      "expected": "IS 14207 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 14207 : 2025",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 10306 : 2025",
+        "IS 15449 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "replacement shuttle race unit for a household sewing machine",
+      "expected": "IS 14207 : 2025",
+      "rank": 1,
+      "returned": [
+        "IS 14207 : 2025",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024"
+      ]
+    },
+    {
+      "query": "general requirements for a household zig-zag sewing machine head",
+      "expected": "IS 15449 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "overall construction, materials and workmanship of a domestic zigzag machine",
+      "expected": "IS 15449 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 9246 : 2022"
+      ]
+    },
+    {
+      "query": "classification and general specification of zig zag sewing machine heads",
+      "expected": "IS 15449 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "basic requirements a household zigzag sewing machine head must meet",
+      "expected": "IS 15449 (Part 1) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "accuracy and dimensional tolerance limits for a zig-zag sewing machine head",
+      "expected": "IS 15449 (Part 2) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 3) : 2024"
+      ]
+    },
+    {
+      "query": "permissible deviation in needle bar alignment on a zigzag machine",
+      "expected": "IS 15449 (Part 2) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024"
+      ]
+    },
+    {
+      "query": "measurement accuracy requirements for domestic zig zag sewing machines",
+      "expected": "IS 15449 (Part 2) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 3) : 2024"
+      ]
+    },
+    {
+      "query": "geometric accuracy testing of a zigzag sewing machine head",
+      "expected": "IS 15449 (Part 2) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 3) : 2024"
+      ]
+    },
+    {
+      "query": "stitch quality requirements for a household zig-zag sewing machine",
+      "expected": "IS 15449 (Part 3) : 2024",
+      "rank": 2,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 2) : 2024"
+      ]
+    },
+    {
+      "query": "stitch formation and seam appearance performance tests",
+      "expected": "IS 15449 (Part 3) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 17017 (Part 23) : 2026",
+        "IS 14207 : 2025"
+      ]
+    },
+    {
+      "query": "requirements for stitch length and stitch width on a zigzag machine",
+      "expected": "IS 15449 (Part 3) : 2024",
+      "rank": 2,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 4) : 2024"
+      ]
+    },
+    {
+      "query": "how a zig zag machine must perform when sewing test fabrics",
+      "expected": "IS 15449 (Part 3) : 2024",
+      "rank": 2,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 2) : 2024"
+      ]
+    },
+    {
+      "query": "endurance and durability testing of a household zig-zag sewing machine",
+      "expected": "IS 15449 (Part 4) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 15449 (Part 3) : 2024"
+      ]
+    },
+    {
+      "query": "how many hours of continuous running a zigzag machine must withstand",
+      "expected": "IS 15449 (Part 4) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024"
+      ]
+    },
+    {
+      "query": "wear and life test requirements for a domestic zig zag sewing machine",
+      "expected": "IS 15449 (Part 4) : 2024",
+      "rank": 2,
+      "returned": [
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024"
+      ]
+    },
+    {
+      "query": "durability trial a sewing machine head must pass before acceptance",
+      "expected": "IS 15449 (Part 4) : 2024",
+      "rank": 1,
+      "returned": [
+        "IS 15449 (Part 4) : 2024",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 3) : 2024",
+        "IS 15449 (Part 2) : 2024"
+      ]
+    },
+    {
+      "query": "deepwell hand pump for village drinking water supply",
+      "expected": "IS 15500 (Part 1 to 8) : 2021",
+      "rank": 1,
+      "returned": [
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "hand operated deep well water pump with riser pipes and connecting rods",
+      "expected": "IS 15500 (Part 1 to 8) : 2021",
+      "rank": 1,
+      "returned": [
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "India Mark type handpump components and the special tools to install it",
+      "expected": "IS 15500 (Part 1 to 8) : 2021",
+      "rank": 1,
+      "returned": [
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "spare parts and erection tools for a deep well handpump",
+      "expected": "IS 15500 (Part 1 to 8) : 2021",
+      "rank": 1,
+      "returned": [
+        "IS 15500 (Part 1 to 8) : 2021"
+      ]
+    },
+    {
+      "query": "d.c. charging station for electric vehicles",
+      "expected": "IS 17017 (Part 23) : 2026",
+      "rank": 1,
+      "returned": [
+        "IS 17017 (Part 23) : 2026"
+      ]
+    },
+    {
+      "query": "DC EV supply equipment requirements for a public charging point",
+      "expected": "IS 17017 (Part 23) : 2026",
+      "rank": 1,
+      "returned": [
+        "IS 17017 (Part 23) : 2026"
+      ]
+    },
+    {
+      "query": "electric vehicle conductive charging system using direct current",
+      "expected": "IS 17017 (Part 23) : 2026",
+      "rank": 1,
+      "returned": [
+        "IS 17017 (Part 23) : 2026"
+      ]
+    },
+    {
+      "query": "fast charger delivering direct current to an electric vehicle battery",
+      "expected": "IS 17017 (Part 23) : 2026",
+      "rank": 1,
+      "returned": [
+        "IS 17017 (Part 23) : 2026"
+      ]
+    },
+    {
+      "query": "automatic chapati making machine for a canteen kitchen",
+      "expected": "IS 9246 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 9246 : 2022",
+        "IS 10306 : 2025",
+        "IS 15449 (Part 1) : 2024",
+        "IS 1296 : 2024",
+        "IS 14207 : 2025"
+      ]
+    },
+    {
+      "query": "roti press and baking equipment for institutional cooking",
+      "expected": "IS 9246 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 9246 : 2022",
+        "IS 17017 (Part 23) : 2026",
+        "IS 1296 : 2024",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 10306 : 2025"
+      ]
+    },
+    {
+      "query": "machine for producing flatbread in bulk for a hostel mess",
+      "expected": "IS 9246 : 2022",
+      "rank": null,
+      "returned": [
+        "IS 10306 : 2025",
+        "IS 15500 (Part 1 to 8) : 2021",
+        "IS 15449 (Part 1) : 2024",
+        "IS 15449 (Part 2) : 2024",
+        "IS 10202 : 2025"
+      ]
+    },
+    {
+      "query": "chapati making equipment for a mid day meal kitchen",
+      "expected": "IS 9246 : 2022",
+      "rank": 1,
+      "returned": [
+        "IS 9246 : 2022",
+        "IS 17017 (Part 23) : 2026",
+        "IS 10262 : 2019"
+      ]
+    }
+  ]
+}
