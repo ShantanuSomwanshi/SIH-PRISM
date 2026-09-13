@@ -1,0 +1,2 @@
+﻿-- SQLite schema is initialized automatically by the application.
+-- This file documents the tables. Running the application creates them.

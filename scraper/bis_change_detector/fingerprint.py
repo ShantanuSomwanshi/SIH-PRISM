@@ -17,6 +17,14 @@ def normalize_id(value):
     return value.replace('IS:', 'IS ').replace('IS  ', 'IS ')
 
 
+def standard_identity(value):
+    """Return an ID suitable for matching across BIS source formats."""
+    normalized = normalize_id(value)
+    normalized = re.sub(r'\s*:\s*(?:19|20)\d{2}\b', '', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    return normalized
+
+
 def comparable_record(record):
     return {field: ' '.join(str(record.get(field) or '').split())
             for field in MEANINGFUL_FIELDS}

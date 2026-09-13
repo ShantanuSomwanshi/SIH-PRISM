@@ -1,4 +1,4 @@
-import os
+﻿import os
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -7,7 +7,7 @@ load_dotenv()
 
 try:
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-    print("✅ Successfully connected to Groq! Here are your available models:\n")
+    print("Γ£à Successfully connected to Groq! Here are your available models:\n")
     
     # Fetch and print the list of models your key can access
     models = client.models.list()

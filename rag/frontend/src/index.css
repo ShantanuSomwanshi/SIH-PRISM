@@ -1,4 +1,4 @@
-/* Tailwind v4 needs only this one line - no PostCSS config and no
+﻿/* Tailwind v4 needs only this one line - no PostCSS config and no
    tailwind.config.js, unlike v3. The @tailwindcss/vite plugin in
    vite.config.js scans your components for class names. */
 @import "tailwindcss";

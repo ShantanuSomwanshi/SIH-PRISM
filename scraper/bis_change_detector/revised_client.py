@@ -1,5 +1,7 @@
 import logging
 import re
+import random
+import time
 from dataclasses import dataclass
 
 import requests
@@ -52,13 +54,23 @@ class RevisedStandard:
         }
 
 
-def _post(session, url, payload, timeout):
-    response = session.post(url, json=payload, timeout=timeout)
-    response.raise_for_status()
-    body = response.json()
-    if body.get('status') != 'SUCCESS':
-        raise RuntimeError(body.get('msg') or f'BIS revised endpoint failed: {url}')
-    return body
+def _post(session, url, payload, timeout, retries=3, retry_base_seconds=2):
+    for attempt in range(retries + 1):
+        try:
+            response = session.post(url, json=payload, timeout=timeout)
+            if response.status_code == 429 or response.status_code >= 500:
+                response.raise_for_status()
+            response.raise_for_status()
+            body = response.json()
+            if body.get('status') != 'SUCCESS':
+                raise RuntimeError(body.get('msg') or f'BIS revised endpoint failed: {url}')
+            return body
+        except (requests.RequestException, ValueError) as exc:
+            if attempt >= retries:
+                raise
+            delay = retry_base_seconds * (2 ** attempt) + random.uniform(0, 0.5)
+            log.warning('BIS request failed (%s), retrying in %.1fs', exc, delay)
+            time.sleep(delay)
 
 
 def _id_aliases(value):
@@ -81,7 +93,7 @@ def _id_aliases(value):
     return aliases
 
 
-def fetch_selected(selected_ids, timeout=45, per_page=1000):
+def fetch_selected(selected_ids, timeout=45, per_page=1000, retries=3, retry_base_seconds=2):
     wanted = {normalize_id(value) for value in selected_ids}
     wanted_aliases = {alias: standard_id for standard_id in wanted for alias in _id_aliases(standard_id)}
     if not wanted:
@@ -89,7 +101,7 @@ def fetch_selected(selected_ids, timeout=45, per_page=1000):
     session = requests.Session()
     session.headers.update({'Content-Type': 'application/json', 'User-Agent': 'BIS-Selected-Standards-Monitor/1.0'})
     count_payload = {'fromDate': '', 'toDate': '', 'departmentIds': [], **BASE_PAYLOAD}
-    departments = _post(session, DEPARTMENT_COUNT_URL, count_payload, timeout).get('data', [])
+    departments = _post(session, DEPARTMENT_COUNT_URL, count_payload, timeout, retries, retry_base_seconds).get('data', [])
     found = {}
     for department in departments:
         department_id = department.get('departmentId')
@@ -97,7 +109,7 @@ def fetch_selected(selected_ids, timeout=45, per_page=1000):
         pages = max(1, (total + per_page - 1) // per_page)
         for page in range(1, pages + 1):
             payload = {'departmentId': department_id, 'page': page, 'per_page': per_page, **BASE_PAYLOAD}
-            rows = _post(session, REVISED_LIST_URL, payload, timeout).get('data', [])
+            rows = _post(session, REVISED_LIST_URL, payload, timeout, retries, retry_base_seconds).get('data', [])
             for row in rows:
                 row_id = normalize_id(row.get('standardNumber'))
                 matching_id = next((wanted_aliases[alias] for alias in _id_aliases(row_id)

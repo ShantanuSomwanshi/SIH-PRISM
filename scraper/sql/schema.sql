@@ -5,4 +5,10 @@
 -- standard_changes contains deduplicated field-level BIS observations.
 -- standard_versions is append-only history of baseline and BIS revised-list observations.
 -- current_standards is a replaceable pointer to the latest version; it is not history.
+-- current_standards also exposes latest_standard_id/title/status/publication/source
+-- so consumers do not need to join just to display the current version.
+-- whats_new_entries is append/update history for BIS announcements and discovery URLs.
+-- whats_new_entries.confidence separates downloadable standard evidence from videos
+-- and unrelated/ambiguous announcements.
+-- standard_lifecycle tracks DISCOVERED, VERIFIED_IN_REVISED_LIST, and DOCUMENT_RETRIEVED states.
 -- standard_subscriptions and notifications prepare future user notification delivery.

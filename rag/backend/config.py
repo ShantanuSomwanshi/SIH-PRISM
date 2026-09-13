@@ -1,4 +1,4 @@
-"""
+﻿"""
 Central configuration for the PRISM backend.
 
 Every other backend module imports its paths and settings from here,
@@ -51,10 +51,67 @@ REPORT_PATH = BACKEND_DIR / "ingestion_report.json"
 # --- Vector store / embeddings -------------------------------------
 COLLECTION_NAME = "prism_standards"
 EMBEDDING_MODEL = "BAAI/bge-m3"
-RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
+RERANKER_MAX_TOKENS = int(os.getenv("RERANKER_MAX_TOKENS", "512"))
 
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
+
+# --- Keeping ingestion off the machine's knees -----------------------
+# bge-m3 is XLM-RoBERTa-large: about 568 million parameters, 2.2 GB of
+# weights, running on the CPU. The weights alone are unavoidable. What is
+# avoidable is everything on top of them.
+#
+# EMBED_BATCH_SIZE is the one that matters. Sentence-transformers pads a
+# batch to its longest member and holds the activations for the whole
+# batch across all 24 layers at once, so peak memory scales more or less
+# linearly with it. This was effectively 200 and that is where the freeze
+# came from: 200 chunks in flight through a 568M-parameter model needs
+# several gigabytes on top of the 2.2 GB of weights, and Windows starts
+# swapping. 16 is slower per call but survives on a laptop.
+EMBED_BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "16"))
+
+# Insurance, not the main lever. bge-m3 will accept sequences up to 8192
+# tokens; a CHUNK_SIZE of 1000 CHARACTERS is roughly 250-300 tokens, so
+# nothing we ingest comes near the cap and lowering it changes nothing for
+# ordinary chunks. It only bites on an unusually long input - a pasted
+# tender section - where it trades some of the tail for staying alive.
+# Do not drop this below about 512 or long queries lose real content.
+EMBED_MAX_TOKENS = int(os.getenv("EMBED_MAX_TOKENS", "1024"))
+
+# Cores to leave free for the rest of the computer. Torch otherwise takes
+# one thread per core and pins all of them, which is why the editor stops
+# redrawing even when memory is fine. 0 = take everything (faster, but do
+# not expect to use the laptop meanwhile).
+EMBED_SPARE_CORES = int(os.getenv("EMBED_SPARE_CORES", "2"))
+
+# --- GeM marketplace -------------------------------------------------
+# Tier 1 of the corpus: the category catalogue export. Short names for the
+# whole marketplace, cheap to embed. A standard's PDF is tier 2, fetched
+# only once a category has been chosen.
+GEM_CATALOG_CSV = BACKEND_DIR / "gem_categories.csv"
+GEM_CACHE_DIR = BACKEND_DIR / "gem_cache"
+
+GEM_SEARCH_URL = os.getenv("GEM_SEARCH_URL", "https://mkp.gem.gov.in/search")
+
+# Live lookups are off by default: a demo must never depend on the network,
+# and this calls a government portal.
+GEM_LIVE_ENABLED = os.getenv("GEM_LIVE_ENABLED", "false").lower() == "true"
+GEM_TIMEOUT_SECONDS = float(os.getenv("GEM_TIMEOUT_SECONDS", "12"))
+GEM_CACHE_TTL_HOURS = float(os.getenv("GEM_CACHE_TTL_HOURS", "24"))
+GEM_REQUEST_DELAY_SECONDS = float(os.getenv("GEM_REQUEST_DELAY_SECONDS", "2"))
+GEM_USER_AGENT = os.getenv(
+    "GEM_USER_AGENT",
+    "PRISM/0.1 (SIH 2026 student project; standards research)",
+)
+
+# Words that carry no product information, dropped when turning a tender
+# description into a search term.
+GEM_QUERY_NOISE_WORDS = {
+    "mnt", "mounted", "type", "supply", "make", "model", "qty", "quantity",
+    "nos", "with", "and", "for", "the", "of", "as", "per", "conforming",
+    "required", "item", "approx",
+}
 
 # --- API security ---------------------------------------------------
 # Which front-end addresses may call the API from a browser.
@@ -68,16 +125,37 @@ ALLOWED_ORIGINS = [
     ).split(",") if o.strip()
 ]
 
+# --- Who may call the read routes ---------------------------------
+# A key for /api/recommend and friends. Leave it EMPTY and the routes are
+# open, which is convenient for local development. Set it and every
+# request must carry the same value in an X-API-Key header.
+#
+# This is a shared secret, not a login: it identifies a calling SYSTEM
+# (a procurement portal), not a person.
+API_KEY = os.getenv("API_KEY", "").strip()
+REQUIRE_API_KEY = bool(API_KEY)
+
 # POST /ingest writes straight into the vector store, and whatever is
 # written there is later fed to the LLM as trusted source material.
-# So it is off unless switched on, and needs a key when it is on.
+# So it is off unless switched on, and needs its OWN key - a portal that
+# may ask for recommendations should not also be able to add documents.
 INGEST_ENABLED = os.getenv("INGEST_ENABLED", "false").lower() == "true"
 INGEST_API_KEY = os.getenv("INGEST_API_KEY", "").strip()
 
 # Size limits - stop one request from costing a fortune or exhausting memory.
-MAX_QUERY_CHARS = int(os.getenv("MAX_QUERY_CHARS", "4000"))
+# A pasted tender section routinely runs past a few thousand characters.
+# 4000 rejected real specifications outright.
+MAX_QUERY_CHARS = int(os.getenv("MAX_QUERY_CHARS", "40000"))
 MAX_INGEST_DOCS = int(os.getenv("MAX_INGEST_DOCS", "100"))
 MAX_INGEST_CHARS = int(os.getenv("MAX_INGEST_CHARS", "50000"))
+
+# --- Uploaded documents ---------------------------------------------
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
+# Cap OCR work - a 200-page scanned tender would take many minutes.
+MAX_DOC_PAGES = int(os.getenv("MAX_DOC_PAGES", "40"))
+# A long document is searched in pieces; this caps how many.
+MAX_DOC_PASSAGES = int(os.getenv("MAX_DOC_PASSAGES", "15"))
+DOC_PASSAGE_CHARS = int(os.getenv("DOC_PASSAGE_CHARS", "900"))
 
 # Simple per-IP rate limit.
 RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "30"))
@@ -97,3 +175,16 @@ OCR_DPI = int(os.getenv("OCR_DPI", "300"))
 # A page with fewer characters than this is assumed to be a scan,
 # and gets sent to OCR.
 MIN_CHARS_PER_PAGE = int(os.getenv("MIN_CHARS_PER_PAGE", "200"))
+
+# Some BIS PDFs set their Hindi text in a legacy font (Krutidev, Chanakya
+# and similar) that paints Devanagari glyphs onto Latin codepoints. The
+# page LOOKS like Hindi on screen but extracts as "Hkkjrh; ekud". There is
+# plenty of text, so the MIN_CHARS_PER_PAGE rule above never fires, yet
+# none of it is readable. When this is on, such pages are sent to OCR too.
+#
+# The OCR result is only accepted if it comes back in real Devanagari,
+# which in practice needs the Hindi language pack:
+#     OCR_LANG=eng+hin
+# With plain "eng" the page is left as it is and flagged, never replaced
+# with a second kind of gibberish.
+OCR_LEGACY_FONTS = os.getenv("OCR_LEGACY_FONTS", "true").lower() == "true"

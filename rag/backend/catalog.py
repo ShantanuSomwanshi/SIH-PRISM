@@ -1,4 +1,4 @@
-"""
+﻿"""
 Loads standards_catalog.json - the link between a PDF filename and the
 real Indian Standard it contains.
 

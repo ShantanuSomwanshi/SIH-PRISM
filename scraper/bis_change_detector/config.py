@@ -29,6 +29,23 @@ class Settings:
     scraper_timeout: int = 3600
     retries: int = 3
     retry_base_seconds: int = 10
+    
+    # Dual-source configuration (NEW)
+    api_enabled: bool = True
+    scraper_enabled: bool = True
+    discovery_enabled: bool = True
+    fallback_on_api_failure: bool = True
+    merge_duplicate_standards: bool = True
+    
+    # PII Protection (NEW)
+    redact_pii: bool = True
+    pii_detection_enabled: bool = True
+    
+    # What's New Detector (NEW)
+    whats_new_enabled: bool = True
+    whats_new_include_archive: bool = True
+    whats_new_max_pages: int = 1
+    whats_new_download_pdfs: bool = False
 
     @classmethod
     def from_env(cls):
@@ -55,4 +72,18 @@ class Settings:
             scraper_timeout=int(os.getenv('SCRAPER_TIMEOUT_SECONDS', '3600')),
             retries=int(os.getenv('RETRIES', '3')),
             retry_base_seconds=int(os.getenv('RETRY_BASE_SECONDS', '10')),
+            # Dual-source options (NEW)
+            api_enabled=os.getenv('API_ENABLED', 'true').lower() == 'true',
+            scraper_enabled=os.getenv('SCRAPER_ENABLED', 'true').lower() == 'true',
+            discovery_enabled=os.getenv('DISCOVERY_ENABLED', 'true').lower() == 'true',
+            fallback_on_api_failure=os.getenv('FALLBACK_ON_API_FAILURE', 'true').lower() == 'true',
+            merge_duplicate_standards=os.getenv('MERGE_DUPLICATE_STANDARDS', 'true').lower() == 'true',
+            # PII Protection (NEW)
+            redact_pii=os.getenv('REDACT_PII', 'true').lower() == 'true',
+            pii_detection_enabled=os.getenv('PII_DETECTION_ENABLED', 'true').lower() == 'true',
+            # What's New Detector (NEW)
+            whats_new_enabled=os.getenv('WHATS_NEW_ENABLED', 'true').lower() == 'true',
+            whats_new_include_archive=os.getenv('WHATS_NEW_INCLUDE_ARCHIVE', 'true').lower() == 'true',
+            whats_new_max_pages=max(0, min(10, int(os.getenv('WHATS_NEW_MAX_PAGES', '1')))),
+            whats_new_download_pdfs=os.getenv('WHATS_NEW_DOWNLOAD_PDFS', 'false').lower() == 'true',
         )

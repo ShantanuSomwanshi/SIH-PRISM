@@ -179,6 +179,8 @@ Downstream handoff to the main RAG indexing/retrieval project
 - `bis_change_detector/page_hasher.py`: fetches and normalizes the monitored page.
 - `bis_change_detector/discovery.py`: discovers standard IDs and page-row fingerprints.
 - `bis_change_detector/scraper_adapter.py`: invokes the unchanged legacy scraper in isolation.
+- `bis_change_detector/whats_new_detector.py`: discovers and persists BIS What's New announcements.
+- `bis_change_detector/whats_new_downloader.py`: optionally retrieves validated BIS PDFs using immutable hash names.
 - `bis_change_detector/artifact_parser.py`: extracts records from PDF and Excel artifacts.
 - `bis_change_detector/fingerprint.py`: calculates the exact standard metadata fingerprint.
 - `bis_change_detector/db.py`: owns SQLite initialization and persistence.
@@ -234,6 +236,9 @@ The project currently depends on Python packages listed in `requirements.txt`, i
 - `RETRIES`
 - `RETRY_BASE_SECONDS`
 - `DISCOVERY_ENABLED`
+- `API_ENABLED`, `SCRAPER_ENABLED`, `FALLBACK_ON_API_FAILURE`, `MERGE_DUPLICATE_STANDARDS`
+- `WHATS_NEW_ENABLED`, `WHATS_NEW_INCLUDE_ARCHIVE`, `WHATS_NEW_MAX_PAGES`
+- `WHATS_NEW_DOWNLOAD_PDFS` (false by default; controlled BIS PDF retrieval)
 
 Relative paths are resolved from the repository root.
 

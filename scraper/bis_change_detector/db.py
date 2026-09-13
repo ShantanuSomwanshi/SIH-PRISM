@@ -1,8 +1,11 @@
 import json
+import hashlib
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .fingerprint import standard_identity
 
 
 def now():
@@ -65,7 +68,9 @@ class Database:
             );
             CREATE TABLE IF NOT EXISTS current_standards (
               standard_id TEXT PRIMARY KEY, version_id INTEGER NOT NULL,
-              fingerprint TEXT NOT NULL, updated_at TEXT NOT NULL
+              fingerprint TEXT NOT NULL, updated_at TEXT NOT NULL,
+              latest_standard_id TEXT, latest_title TEXT, latest_status TEXT,
+              latest_publication_date TEXT, latest_source_url TEXT
             );
             CREATE TABLE IF NOT EXISTS standard_changes (
               id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL,
@@ -88,15 +93,65 @@ class Database:
               created_at TEXT NOT NULL, sent_at TEXT, details TEXT,
               UNIQUE(change_id, recipient, channel)
             );
+            CREATE TABLE IF NOT EXISTS whats_new_entries (
+              entry_key TEXT PRIMARY KEY, standard_id TEXT, title TEXT NOT NULL,
+              content_type TEXT, published_date TEXT, source_url TEXT,
+              size TEXT, source_page TEXT NOT NULL, first_seen_at TEXT NOT NULL,
+              last_seen_at TEXT NOT NULL, mention_count INTEGER NOT NULL DEFAULT 1,
+              verification_status TEXT NOT NULL DEFAULT 'PENDING',
+              artifact_path TEXT, artifact_sha256 TEXT,
+              confidence TEXT NOT NULL DEFAULT 'low'
+            );
+            CREATE TABLE IF NOT EXISTS standard_lifecycle (
+              standard_id TEXT PRIMARY KEY, identity TEXT NOT NULL,
+              lifecycle_status TEXT NOT NULL DEFAULT 'DISCOVERED',
+              first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL,
+              latest_title TEXT, latest_source_url TEXT,
+              verification_status TEXT NOT NULL DEFAULT 'PENDING',
+              artifact_path TEXT, artifact_sha256 TEXT
+            );
             CREATE INDEX IF NOT EXISTS idx_versions_standard
               ON standard_versions(standard_id, observed_at);
             CREATE INDEX IF NOT EXISTS idx_changes_standard
               ON standard_changes(standard_id, detected_at);
             ''')
             try:
-                c.execute('ALTER TABLE standard_versions ADD COLUMN observed_standard_id TEXT')
-            except sqlite3.OperationalError:
-                pass
+              c.execute('ALTER TABLE standard_versions ADD COLUMN observed_standard_id TEXT')
+            except sqlite3.OperationalError as exc:
+              if 'duplicate column name' not in str(exc).lower():
+                raise
+            for column, definition in (
+                ('latest_standard_id', 'TEXT'), ('latest_title', 'TEXT'),
+                ('latest_status', 'TEXT'), ('latest_publication_date', 'TEXT'),
+                ('latest_source_url', 'TEXT'),
+            ):
+                try:
+                    c.execute(f'ALTER TABLE current_standards ADD COLUMN {column} {definition}')
+                except sqlite3.OperationalError as exc:
+                    if 'duplicate column name' not in str(exc).lower():
+                        raise
+            try:
+                c.execute('ALTER TABLE whats_new_entries ADD COLUMN confidence TEXT NOT NULL DEFAULT \'low\'')
+            except sqlite3.OperationalError as exc:
+                if 'duplicate column name' not in str(exc).lower():
+                    raise
+            c.execute('''UPDATE current_standards SET
+              latest_standard_id=COALESCE(
+                (SELECT COALESCE(v.observed_standard_id, v.standard_id)
+                 FROM standard_versions v WHERE v.id=current_standards.version_id),
+                latest_standard_id),
+              latest_title=COALESCE(
+                (SELECT v.title FROM standard_versions v WHERE v.id=current_standards.version_id),
+                latest_title),
+              latest_status=COALESCE(
+                (SELECT v.status FROM standard_versions v WHERE v.id=current_standards.version_id),
+                latest_status),
+              latest_publication_date=COALESCE(
+                (SELECT v.publication_date FROM standard_versions v WHERE v.id=current_standards.version_id),
+                latest_publication_date),
+              latest_source_url=COALESCE(
+                (SELECT v.source_url FROM standard_versions v WHERE v.id=current_standards.version_id),
+                latest_source_url)''')
             c.execute('''DELETE FROM standard_versions
               WHERE version_type='BASELINE'
                 AND id NOT IN (
@@ -112,6 +167,70 @@ class Database:
             c.execute('''INSERT INTO monitor_state(key,value,updated_at) VALUES(?,?,?)
               ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at''',
                       (key, value, now()))
+
+    def record_whats_new_entries(self, entries):
+        """Upsert announcement discoveries without treating them as standards."""
+        timestamp = now()
+        with self.conn() as c:
+            for entry in entries:
+                published = entry.published_date.isoformat() if entry.published_date else None
+                source_url = entry.url or ''
+                key = hashlib.sha256(
+                    f'{entry.title}\x00{source_url}'.encode('utf-8')
+                ).hexdigest()
+                c.execute('''INSERT INTO whats_new_entries
+                  (entry_key,standard_id,title,content_type,published_date,source_url,
+                   size,source_page,first_seen_at,last_seen_at,mention_count,confidence)
+                  VALUES(?,?,?,?,?,?,?,?,?,?,1,?)
+                  ON CONFLICT(entry_key) DO UPDATE SET
+                    last_seen_at=excluded.last_seen_at,
+                    mention_count=whats_new_entries.mention_count + 1,
+                    standard_id=COALESCE(excluded.standard_id, whats_new_entries.standard_id),
+                    published_date=COALESCE(excluded.published_date, whats_new_entries.published_date)''',
+                          (key, entry.standard_id, entry.title, entry.content_type,
+                           published, source_url, entry.size, entry.source_page,
+                         timestamp, timestamp, entry.confidence))
+                if entry.standard_id:
+                    identity = standard_identity(entry.standard_id)
+                    c.execute('''INSERT INTO standard_lifecycle
+                      (standard_id,identity,lifecycle_status,first_seen_at,last_seen_at,
+                       latest_title,latest_source_url)
+                      VALUES(?,?,? ,?,?,?,?)
+                      ON CONFLICT(standard_id) DO UPDATE SET
+                        last_seen_at=excluded.last_seen_at,
+                        latest_title=excluded.latest_title,
+                        latest_source_url=excluded.latest_source_url''',
+                              (entry.standard_id, identity, 'DISCOVERED', timestamp,
+                               timestamp, entry.title, entry.url))
+
+    def update_lifecycle_status(self, standard_id, lifecycle_status,
+                                verification_status=None, artifact_path=None,
+                                artifact_sha256=None):
+        with self.conn() as c:
+            c.execute('''UPDATE standard_lifecycle SET
+              lifecycle_status=CASE
+                WHEN lifecycle_status='DOCUMENT_RETRIEVED' AND ? != 'DOCUMENT_RETRIEVED'
+                  THEN lifecycle_status
+                ELSE ? END,
+              verification_status=CASE
+                WHEN verification_status='DOWNLOADED' AND ? IN ('PENDING', 'VERIFIED')
+                  THEN verification_status
+                ELSE COALESCE(?, verification_status) END,
+              artifact_path=COALESCE(?, artifact_path),
+              artifact_sha256=COALESCE(?, artifact_sha256), last_seen_at=?
+              WHERE identity=? OR standard_id=?''',
+                      (lifecycle_status, lifecycle_status, verification_status, verification_status,
+                       str(artifact_path) if artifact_path else None, artifact_sha256, now(),
+                       standard_identity(standard_id), standard_id))
+
+    def update_whats_new_artifact(self, standard_id, artifact_path, artifact_sha256):
+        with self.conn() as c:
+            c.execute('''UPDATE whats_new_entries
+              SET artifact_path=?, artifact_sha256=?, verification_status='DOWNLOADED',
+                last_seen_at=? WHERE standard_id=? OR standard_id IN
+                (SELECT standard_id FROM standard_lifecycle WHERE identity=?)''',
+                  (str(artifact_path), artifact_sha256, now(), standard_id,
+                   standard_identity(standard_id)))
 
     def start_run(self, run_id, tier1_hash):
         with self.conn() as c:
@@ -201,6 +320,14 @@ class Database:
               version_id=excluded.version_id, fingerprint=excluded.fingerprint,
               updated_at=excluded.updated_at''',
               (record['standard_id'], version['id'], fingerprint, now()))
+            c.execute('''UPDATE current_standards SET
+              latest_standard_id=?, latest_title=?, latest_status=?,
+              latest_publication_date=?, latest_source_url=?
+              WHERE standard_id=?''',
+                      (record.get('observed_standard_id') or record['standard_id'],
+                       record.get('title'), record.get('status'),
+                       record.get('publication_date'), record.get('source_url'),
+                       record['standard_id']))
 
     def change_exists(self, standard_id, field, old_fingerprint, new_fingerprint):
         with self.conn() as c:

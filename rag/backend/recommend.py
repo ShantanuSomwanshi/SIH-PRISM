@@ -1,4 +1,4 @@
-"""
+﻿"""
 The recommendation logic behind POST /api/recommend.
 
 Kept out of main.py so the route stays thin and this can be tested on
@@ -24,13 +24,20 @@ Honesty rules, deliberately:
 
 import json
 import logging
+import math
 import re
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
 from backend.catalog import load_catalog
+from backend.clarify import MAX_ROUNDS, apply_answers, answers_as_text
+from backend.clarify import next_question, parse_id
+from backend.references import allied_standards as graph_allied
+from backend.references import chain as reference_chain
+from backend.config import DOC_PASSAGE_CHARS, MAX_DOC_PASSAGES
 from backend.retriever import citation_for, format_standards_context
+from backend.tender import TenderDraft, build_draft
 
 logger = logging.getLogger("prism")
 
@@ -70,6 +77,12 @@ class AlliedStandard(BaseModel):
     code: str
     role: str
     in_corpus: bool = False
+    # "reference clause" means this came from the standard's own text at a
+    # named page. "model" means the language model proposed it. Keeping
+    # them distinguishable is the difference between evidence and output.
+    source: str = "model"
+    cited_on_page: Optional[int] = None
+    edition_note: Optional[str] = None
 
 
 class SourceRef(BaseModel):
@@ -79,10 +92,33 @@ class SourceRef(BaseModel):
     ocr: bool = False
 
 
+class ClarifyOption(BaseModel):
+    label: str
+    detail: str = ""
+    # The standard ids this answer keeps. Echoed back by the client and
+    # used only to narrow what retrieval returns on the next request.
+    select: List[str] = Field(default_factory=list)
+
+
+class ClarifyQuestion(BaseModel):
+    id: str                     # the dimension: part / role / product
+    question: str
+    why: str = ""               # why this cannot be inferred from the query
+    options: List[ClarifyOption] = Field(default_factory=list)
+    allow_multiple: bool = False
+
+
 class RecommendResponse(BaseModel):
     clarification_needed: bool = False
     message: Optional[str] = None
+    # Kept so the existing frontend keeps working unchanged: a flat list of
+    # option labels. New clients should read `questions` instead, which
+    # carries the reason for asking and what each answer selects.
     clarification_options: List[str] = Field(default_factory=list)
+    questions: List[ClarifyQuestion] = Field(default_factory=list)
+    # Dimensions already asked. The client returns this so the next request
+    # does not repeat a question - the API itself stays stateless.
+    asked: List[str] = Field(default_factory=list)
 
     primary_standard: Optional[str] = None
     title: Optional[str] = None
@@ -92,8 +128,16 @@ class RecommendResponse(BaseModel):
 
     confidence_flag: bool = False
     confidence: str = "low"
+    # Why confidence was held back, when it was. Null when nothing capped it.
+    confidence_note: Optional[str] = None
     reasoning: Optional[str] = None
     sources: List[SourceRef] = Field(default_factory=list)
+    # The citation chain, where the reference graph has been built.
+    reference_chain: Optional[dict] = None
+    # Where to buy it on GeM, and how confident that mapping is.
+    gem_categories: Optional[dict] = None
+    # Draft clauses for the officer to edit. Never tender-ready text.
+    tender_draft: Optional[TenderDraft] = None
 
 
 # --- prompt ------------------------------------------------------------
@@ -137,6 +181,19 @@ Reply with JSON only, in exactly this shape:
 
 
 # --- helpers -----------------------------------------------------------
+
+def _number_key(code: str) -> str:
+    """
+    Identify a standard by number and part, ignoring the year.
+
+    "IS 33 : 1976" and "IS 33 : 1992" are the same standard in different
+    editions. Without this they would appear twice in the allied list.
+    """
+    match = re.search(r"(\d{1,5})(?:\s*\(\s*Part\s*([0-9IVXivx]+)\s*\))?", code or "")
+    if not match:
+        return (code or "").strip().lower()
+    return f"{match.group(1)}|{(match.group(2) or '').lower()}"
+
 
 def _extract_json(text: str) -> Optional[dict]:
     """
@@ -297,21 +354,61 @@ def _sources_from(groups: List[dict]) -> List[SourceRef]:
 
 # --- main entry point ---------------------------------------------------
 
-def recommend(query: str, retriever, llm) -> RecommendResponse:
-    groups = retriever.search_standards(query)
+def _same_family_tie(groups: List[dict], margin: float) -> bool:
+    """
+    Are the top two candidates different PARTS of the same standard, and
+    close together?
+
+    This deserves its own trigger. The generic "too close" test requires a
+    weak absolute score, but a query like "household zig-zag sewing machine
+    head" matches all four parts of IS 15449 STRONGLY - the retrieval is
+    working perfectly and the answer is still undetermined, because the
+    parts describe one product and differ only by which aspect of it they
+    specify. Without this the system would silently pick Part 1 and sound
+    confident about it.
+    """
+    if len(groups) < 2 or margin >= AMBIGUOUS_MARGIN:
+        return False
+    first = parse_id(groups[0].get("standard_id", ""))
+    second = parse_id(groups[1].get("standard_id", ""))
+    return bool(
+        first["number"] and first["number"] == second["number"]
+        and (first["part"], first["section"]) != (second["part"], second["section"])
+    )
+
+
+def recommend(query: str, retriever, llm,
+              answers: Optional[List[dict]] = None,
+              asked: Optional[List[str]] = None,
+              include_tender: bool = True,
+              include_gem: bool = True) -> RecommendResponse:
+    answers = answers or []
+    asked = list(asked or [])
+
+    # Answers help retrieval as well as narrowing: "accuracy requirements"
+    # contains a word the original description did not.
+    extra = answers_as_text(answers)
+    search_text = f"{query} {extra}".strip() if extra else query
+
+    groups = retriever.search_standards(search_text)
 
     if not groups:
         return RecommendResponse(
             clarification_needed=True,
             message="Nothing in the indexed standards matches that. "
                     "Try describing the product in different words.",
+            asked=asked,
         )
+
+    # What the officer has already told us narrows the field before
+    # anything else is decided.
+    groups = apply_answers(groups, answers)
 
     top = groups[0]
     runner_up = groups[1] if len(groups) > 1 else None
     margin = (top["score"] - runner_up["score"]) if runner_up else 99.0
 
-    # Two separate reasons to ask rather than guess.
+    # Three separate reasons to ask rather than guess.
     #
     # 1. The description is too short to identify a product at all. This is
     #    NOT about retrieval quality - "paint" matches IS 33 strongly, but
@@ -319,23 +416,78 @@ def recommend(query: str, retriever, llm) -> RecommendResponse:
     #    packaging it.
     # 2. Retrieval was weak AND the top candidates are too close together,
     #    so the ranking itself cannot separate them.
+    # 3. The top candidates are parts of the same standard. Retrieval can be
+    #    excellent and the answer still undetermined.
     too_short = len(meaningful_terms(query)) < MIN_QUERY_TERMS
     too_close = top["best_score"] < WEAK_MATCH_SCORE and margin < AMBIGUOUS_MARGIN
+    family_tie = _same_family_tie(groups, margin)
 
-    if (too_short or too_close) and len(groups) > 1:
-        options = [_short_label(g) for g in groups[:3]]
-        reason = ("That description is too brief to identify a standard."
-                  if too_short else
-                  "That description could match several standards.")
-        return RecommendResponse(
-            clarification_needed=True,
-            message=f"{reason} Which is closest to what you are procuring?",
-            clarification_options=[o for o in options if o],
-            sources=_sources_from(groups[:3]),
-        )
+    unresolved = too_short or too_close or family_tie
+    if unresolved and len(groups) > 1 and len(asked) < MAX_ROUNDS:
+        question = next_question(groups, asked, _short_label)
+        if question:
+            reason = (
+                "That description is too brief to identify a standard."
+                if too_short else
+                "These candidates are parts of one standard covering "
+                "different aspects of the same product."
+                if family_tie else
+                "That description could match several standards."
+            )
+            return RecommendResponse(
+                clarification_needed=True,
+                message=f"{reason} {question['question']}",
+                # Old flat shape, so an existing client still renders.
+                clarification_options=[o["label"] for o in question["options"]],
+                questions=[ClarifyQuestion(**question)],
+                asked=asked + [question["id"]],
+                sources=_sources_from(groups[:3]),
+            )
+
+    # Answering an ambiguity that was never settled. Answers count as
+    # settling it: an officer who picked "Part 4 - Durability Requirements"
+    # has told us what the original short description did not, even though
+    # that description is still short.
+    return _finalise(query, groups, llm,
+                     include_tender=include_tender, include_gem=include_gem,
+                     asked=asked, unresolved=bool(unresolved and not answers))
+
+
+def _gem_or_none(standard_id: str, query: str, title: str) -> Optional[dict]:
+    """
+    GeM categories for this standard, or nothing if GeM is unavailable.
+
+    Wrapped because the marketplace half is optional: a missing CSV or a
+    parsing change should cost the officer the shopping suggestion, never
+    the standards recommendation, which is the part that has to be right.
+    """
+    try:
+        from backend.gem.suggest import suggest
+        result = suggest(standard_id, query=query, title=title, limit=5)
+    except Exception:
+        logger.exception("GeM category suggestion failed")
+        return None
+    return result if result.get("available") else None
+
+
+def _finalise(description: str, groups: List[dict], llm,
+              include_tender: bool = True, include_gem: bool = True,
+              asked: Optional[List[str]] = None,
+              unresolved: bool = False) -> RecommendResponse:
+    """
+    `unresolved` means we are answering anyway despite an ambiguity that was
+    never settled - the officer skipped the questions, ran out of rounds, or
+    only one candidate came back so there was nothing to ask about. It does
+    not change the answer, only how much confidence is claimed for it.
+    """
+    """
+    Ask the model to choose among the candidate standards, then assemble
+    the response. Shared by typed queries and uploaded documents.
+    """
+    top = groups[0]
 
     raw = llm.invoke(PROMPT.format(
-        context=format_standards_context(groups), query=query
+        context=format_standards_context(groups), query=description
     ))
     parsed = _extract_json(getattr(raw, "content", str(raw)))
 
@@ -354,15 +506,32 @@ def recommend(query: str, retriever, llm) -> RecommendResponse:
 
     chosen = next(g for g in groups if g["standard_id"] == primary)
 
-    allied = []
+    # Allied standards come from the reference graph first. Those were
+    # extracted from a named page of the standard itself, so they can be
+    # checked. Anything the model adds on top is kept but labelled, so a
+    # reader can tell evidence from generation.
+    allied, seen = [], {_number_key(primary)}
+
+    for item in graph_allied(primary):
+        key = _number_key(item["code"])
+        if key in seen:
+            continue
+        seen.add(key)
+        allied.append(AlliedStandard(source="reference clause", **item))
+
     for item in parsed.get("allied_standards") or []:
         code = str(item.get("code", "")).strip()
-        if not code or code == primary:
+        if not code:
             continue
+        key = _number_key(code)
+        if key in seen:
+            continue
+        seen.add(key)
         allied.append(AlliedStandard(
             code=code,
             role=str(item.get("role", "related standard")).strip(),
             in_corpus=code in candidate_ids,
+            source="model",
         ))
 
     sufficient = bool(parsed.get("sufficient_evidence", True))
@@ -370,15 +539,159 @@ def recommend(query: str, retriever, llm) -> RecommendResponse:
     confidence = "high" if (strong and sufficient) else \
                  "medium" if top["best_score"] >= WEAK_MATCH_SCORE else "low"
 
+    # Retrieval score is not the only thing that decides how much to trust
+    # an answer, and treating it that way let the system contradict itself:
+    # it would tell an officer "that description is too brief to identify a
+    # standard", get skipped past, and then badge its guess as HIGH
+    # confidence - because a one-word query can still match one document
+    # strongly. Similarity is not sufficiency, which is the same reason the
+    # clarification branch exists at all; the score simply never carried
+    # that fact through to the badge.
+    #
+    # These only ever pull "high" down to "medium". A weak retrieval score
+    # is already reported as low, and nothing here should push confidence
+    # up.
+    caps = []
+    if unresolved:
+        caps.append("the description stayed too brief to identify a "
+                    "standard and no clarifying detail was given")
+    if not parsed:
+        # The reply could not be read as JSON at all, so "sufficient
+        # evidence" defaulted to true - that default is an assumption, not
+        # the model's judgement, and should not underwrite a high rating.
+        caps.append("the model's reply could not be read as structured data")
+
+    confidence_note = None
+    if caps:
+        if confidence == "high":
+            confidence = "medium"
+        confidence_note = (
+            "Confidence limited because " + " and ".join(caps) + "."
+        )
+
     catalog = load_catalog()
-    return RecommendResponse(
+    title = parsed.get("title") or chosen.get("title") or ""
+
+    response = RecommendResponse(
         primary_standard=primary,
-        title=parsed.get("title") or chosen.get("title") or "",
+        title=title,
         allied_standards=allied,
         version_status=_version_status(primary, catalog),
         certification=CERTIFICATION_NOTE,
         confidence_flag=(confidence == "high"),
         confidence=confidence,
+        confidence_note=confidence_note,
         reasoning=parsed.get("reasoning"),
         sources=_sources_from([chosen]),
+        reference_chain=_chain_or_none(primary),
+        asked=list(asked or []),
     )
+
+    if include_gem:
+        response.gem_categories = _gem_or_none(primary, description, title)
+
+    if include_tender:
+        # The officer's own description names the item, because their words
+        # are the ones the rest of their tender will use.
+        response.tender_draft = build_draft(response, item_name=description)
+
+    return response
+
+
+def _chain_or_none(standard_id: str) -> Optional[dict]:
+    """The citation chain, or nothing if the graph has not been built."""
+    try:
+        node = reference_chain(standard_id, depth=2)
+    except Exception:
+        return None
+    return node if node.get("references") else None
+
+
+# --- uploaded documents -------------------------------------------------
+
+def _passages(text: str, size: int, limit: int) -> List[str]:
+    """
+    Break a document into search-sized pieces, respecting paragraphs.
+
+    Embedding a whole tender document as one query produces a vague
+    average of everything in it. Searching piece by piece keeps each
+    query specific, and a tender covering several products can surface
+    several standards instead of one blurred answer.
+    """
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if not paragraphs:
+        paragraphs = [text.strip()]
+
+    out, buffer = [], ""
+    for paragraph in paragraphs:
+        while len(paragraph) > size:                 # one huge paragraph
+            if buffer:
+                out.append(buffer)
+                buffer = ""
+            out.append(paragraph[:size])
+            paragraph = paragraph[size:]
+        if len(buffer) + len(paragraph) + 1 <= size:
+            buffer = (buffer + "\n" + paragraph).strip()
+        else:
+            if buffer:
+                out.append(buffer)
+            buffer = paragraph
+    if buffer:
+        out.append(buffer)
+    return out[:limit]
+
+
+def _merge_groups(per_passage: List[List[dict]]) -> List[dict]:
+    """
+    Combine per-passage results into one ranking of standards.
+
+    A standard that is relevant to several passages of a tender matters
+    more than one that matched a single line, so hits across passages
+    add to its score the same way multiple chunk hits do within a
+    document.
+    """
+    merged: dict = {}
+    for groups in per_passage:
+        for group in groups:
+            key = group["standard_id"]
+            existing = merged.get(key)
+            if existing is None:
+                copy = dict(group)
+                copy["passage_hits"] = 1
+                merged[key] = copy
+            else:
+                existing["passage_hits"] += 1
+                if group["best_score"] > existing["best_score"]:
+                    existing["best_score"] = group["best_score"]
+                    existing["chunks"] = group["chunks"]
+
+    for group in merged.values():
+        group["score"] = group["best_score"] + math.log1p(group["passage_hits"])
+
+    return sorted(merged.values(), key=lambda g: g["score"], reverse=True)
+
+
+def recommend_from_document(text: str, retriever, llm) -> RecommendResponse:
+    """Recommend standards for an uploaded tender document."""
+    passages = _passages(text, DOC_PASSAGE_CHARS, MAX_DOC_PASSAGES)
+    if not passages:
+        return RecommendResponse(
+            clarification_needed=True,
+            message="No readable text was found in that document.",
+        )
+
+    per_passage = [
+        retriever.search_standards(passage, chunk_pool=20, max_standards=4)
+        for passage in passages
+    ]
+    groups = _merge_groups(per_passage)[:6]
+
+    if not groups:
+        return RecommendResponse(
+            clarification_needed=True,
+            message="Nothing in the indexed standards matches this document.",
+        )
+
+    # A document is never "too brief" - the short-query check that guards
+    # typed input does not apply here.
+    return _finalise(text[:3000], groups, llm)

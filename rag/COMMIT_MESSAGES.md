@@ -1,4 +1,4 @@
-# Commit Messages
+﻿# Commit Messages
 
 A record of the commit messages used for the PRISM prototype repository.
 
