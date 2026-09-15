@@ -6,6 +6,7 @@
 # Secrets - a catch-all safety net. .env.example is still tracked,
 # because this pattern matches ".env" exactly, not ".env.example".
 .env
+*.env
 
 # Python
 __pycache__/
@@ -13,9 +14,28 @@ __pycache__/
 .venv/
 venv/
 
-# Backup copies made while refactoring
+# Local generated data and downloaded artifacts
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.pdf
 *.bak
 *.orig
+
+# Project-specific runtime outputs
+scraper/downloads/
+scraper/selected_standards/
+scraper/state/
+scraper/logs/
+collector/**/downloads/
+collector/**/state/
+collector/**/logs/
+
+# Node / frontend build artifacts
+node_modules/
+dist/
+build/
 
 # Editors and operating systems
 .vscode/

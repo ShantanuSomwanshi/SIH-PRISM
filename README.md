@@ -1,69 +1,79 @@
-# PRISM: Indian Standards Recommendation Engine
+﻿# PRISM: Indian Standards Recommendation Engine
 
-An AI-powered system that helps procurement officials identify the most relevant Indian Standards for product descriptions and tender specifications.
+PRISM is an AI-powered procurement intelligence platform designed to help teams identify the most relevant Indian Standards for technical specifications, tender documents, and compliance review.
 
-## Problem
+It combines a standards recommendation workflow with a BIS monitoring pipeline so users can not only find suitable standards, but also stay aware of revisions, updates, and lifecycle changes.
 
-Procurement officials often struggle to identify correct Indian Standards when preparing tender specifications. With thousands of published standards, overlapping scopes, frequent revisions, and complex normative references, specifications frequently:
+## Why PRISM
 
-- Omit relevant standards
-- Reference outdated versions  
-- Include incomplete technical requirements
-- Lack proper supporting documents
+Procurement and engineering teams often struggle with:
 
-This leads to ambiguity, reduced product quality, and procurement disputes.
+- fragmented standards information
+- outdated or superseded references
+- incomplete product specification coverage
+- difficulty identifying related compliance standards
 
-## Solution
+PRISM addresses this by using retrieval-based AI and standards monitoring together to surface useful, context-aware recommendations with supporting references.
 
-PRISM is a **Retrieval-Augmented Generation (RAG)** system that:
+## Core Modules
 
-1. **Analyzes** your product description or technical specification
-2. **Recommends** the most relevant Indian Standard(s)
-3. **Identifies** allied standards (normative references, test methods, terminology, safety, installation)
-4. **Highlights** current editions, amendments, and revision status
-5. **Suggests** applicable certification requirements (BIS Product Certification, CRS, Hallmarking)
-6. **Provides** page-level citations for every recommendation
+### 1. RAG recommendation engine
+The `rag/` directory contains the recommendation and retrieval stack.
 
-## Project Architecture
+Features include:
 
-PRISM consists of two main components:
+- hybrid retrieval using vector and lexical signals
+- document ingestion for technical files and standards-related material
+- recommendation responses grounded in project documents
+- React-based frontend for exploration and review
+- LLM-assisted structured output generation
 
-### 1. **RAG System** (`/rag`)
-Intelligent document retrieval and recommendation engine.
+### 2. BIS lifecycle monitoring
+The `scraper/` directory contains the BIS tracking and change-detection workflow.
 
-- **FastAPI backend** with hybrid retrieval (vector + BM25)
-- **Local Chroma vector store** using Hugging Face embeddings
-- **Cross-encoder reranking** for precision ranking
-- **React frontend** for interactive recommendations
-- **LLM integration** (Groq) for structured outputs
+Features include:
 
-**Status**: Core RAG pipeline operational, ready for production standards corpus
+- monitoring updates on BIS standard pages
+- detecting revision and lifecycle changes
+- extracting metadata from artifacts and PDFs
+- storing update state in SQLite
+- enabling scheduled monitoring runs
 
-📖 [Read RAG Documentation](rag/PIPELINE.md)
+## Repository Structure
 
-### 2. **BIS Change Detector** (`/scraper`)
-Continuous monitoring system for Indian Standards updates.
-
-- Tracks the [BIS Revised Standards](https://standards.bis.gov.in/website/revised-standards) page
-- Detects new and modified standards
-- Extracts metadata from PDF and Excel artifacts
-- Stores change history in SQLite
-- No Docker or PostgreSQL required
-
-**Status**: Change detection working; awaiting integration with RAG pipeline
-
-📖 [Read Scraper Documentation](scraper/README.md)
+```text
+SIH-PRISM/
+├── README.md
+├── .gitignore
+├── rag/
+│   ├── backend/
+│   ├── frontend/
+│   ├── PIPELINE.md
+│   ├── COMMIT_MESSAGES.md
+│   └── requirements.txt
+├── scraper/
+│   ├── bis_change_detector/
+│   ├── sql/
+│   ├── downloads/
+│   ├── logs/
+│   ├── selected_standards/
+│   ├── README.md
+│   └── PROJECT_CONTEXT.md
+├── collector/
+│   └── bis/
+└── docs and project reports
+```
 
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Node.js 16+ (for frontend)
+
+- Python 3.10+
+- Node.js 18+
 - Git
 
-### Installation
+### RAG setup
 
-#### Backend Setup
 ```bash
 cd rag
 python -m venv .venv
@@ -71,14 +81,16 @@ python -m venv .venv
 copy .env.example .env
 ```
 
-#### Frontend Setup
+### Frontend setup
+
 ```bash
 cd rag/frontend
 npm install
 npm run dev
 ```
 
-#### Scraper Setup
+### Scraper setup
+
 ```bash
 cd scraper
 python -m venv .venv
@@ -86,156 +98,71 @@ python -m venv .venv
 copy .env.example .env
 ```
 
-### Running the System
+### Run the services
 
-**Start RAG Backend:**
 ```bash
+# Start backend
 cd rag
 .\.venv\Scripts\python.exe -m backend.main
-```
 
-**Start Frontend:**
-```bash
+# Start frontend
 cd rag/frontend
 npm run dev
-```
 
-**Run Change Detector (one cycle):**
-```bash
+# Run scraper once
 cd scraper
 .\.venv\Scripts\python.exe -m bis_change_detector.change_detector
 ```
 
-**Run Change Detector (continuous monitoring):**
-```bash
-cd scraper
-.\.venv\Scripts\python.exe -m bis_change_detector.scheduler
-```
+## Current Capabilities
 
-## Features
-
-### Current Capabilities ✅
-- Document ingestion with OCR support for scanned PDFs
-- Hybrid retrieval combining vector similarity and BM25
-- Reciprocal Rank Fusion (RRF) for result fusion
-- Cross-encoder reranking for precision
-- REST API for recommendations
-- Interactive React-based frontend
-- SQLite-based change detection and monitoring
-- Automatic schema setup and state persistence
-
-### Roadmap 🚀
-- [ ] Live standards revision status integration
-- [ ] Deterministic normative reference graph
-- [ ] Certification requirements database
-- [ ] Multilingual support
-- [ ] Automated evaluation tests
-- [ ] Production standards corpus deployment
-- [ ] API rate limiting and authentication
-
-## Project Structure
-
-```
-SIH-PRISM/
-├── README.md                 # This file
-├── rag/                      # RAG system
-│   ├── PIPELINE.md          # Architecture and design
-│   ├── COMMIT_MESSAGES.md   # Development history
-│   ├── backend/             # FastAPI server
-│   │   ├── main.py
-│   │   ├── rag_engine.py
-│   │   ├── embeddings.py
-│   │   ├── retriever.py
-│   │   └── ...
-│   └── frontend/            # React UI
-│       ├── src/
-│       ├── package.json
-│       └── vite.config.js
-└── scraper/                 # Change detection system
-    ├── README.md           # Setup and usage
-    ├── PROJECT_CONTEXT.md  # Detailed context
-    ├── bis_change_detector/
-    │   ├── change_detector.py
-    │   ├── scheduler.py
-    │   ├── db.py
-    │   └── ...
-    ├── sql/
-    │   └── schema.sql
-    └── downloads/          # Downloaded standards
-```
-
-## Technologies
-
-- **Backend**: Python, FastAPI, LangChain, Groq
-- **Frontend**: React, Tailwind CSS, Vite
-- **Embeddings**: Hugging Face transformers
-- **Vector Store**: Chroma
-- **Ranking**: Cross-encoders, BM25, RRF
-- **Monitoring**: SQLite, APScheduler
-- **Web Scraping**: Selenium (legacy), HTTP requests (current)
+- AI-assisted recommendation for standards and technical references
+- retrieval over project documents and standards-related sources
+- hybrid ranking for improved precision and recall
+- support for scanned and document-based ingestion workflows
+- BIS update detection and lifecycle monitoring
+- SQLite-backed tracking for state and metadata
+- extensible architecture for future compliance tools
 
 ## Documentation
 
-- [RAG Pipeline Architecture](rag/PIPELINE.md) - Detailed system design
-- [BIS Change Detector Guide](scraper/README.md) - Setup and monitoring
-- [Project Context](scraper/PROJECT_CONTEXT.md) - Full problem statement
-- [Development Commits](rag/COMMIT_MESSAGES.md) - Development history
+- [RAG pipeline notes](rag/PIPELINE.md)
+- [Scraper guide](scraper/README.md)
+- [Project context](scraper/PROJECT_CONTEXT.md)
+- [Commit history notes](rag/COMMIT_MESSAGES.md)
 
-## API Endpoints
+## Tech Stack
 
-### Health Check
-```bash
-GET /api/health
-```
+- Python
+- FastAPI
+- React + Vite
+- Tailwind CSS
+- Chroma vector store
+- Hugging Face embeddings
+- SQLite
+- APScheduler
 
-### Document Ingestion
-```bash
-POST /api/ingest
-Content-Type: multipart/form-data
-Body: [PDF files]
-```
+## Roadmap
 
-### Recommendation
-```bash
-POST /api/recommend
-Content-Type: application/json
-Body: {
-  "query": "Product description or specification"
-}
-```
-
-## Environment Variables
-
-Create `.env` files in both `rag/` and `scraper/` directories:
-
-```env
-# rag/.env
-GROQ_API_KEY=your_groq_api_key_here
-HUGGINGFACE_API_KEY=your_hf_api_key_here
-
-# scraper/.env
-# Configure BIS scraper settings as needed
-```
+- deeper live BIS revision tracking
+- stronger normative reference graph analysis
+- certification and compliance mapping
+- improved evaluation and retrieval tuning
+- deployment-ready production packaging
 
 ## Contributing
 
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+Contributions are welcome. Please create a feature branch and submit a clean pull request for review.
 
 ## License
 
-[Add your license here]
+This repository is intended for research, prototyping, and applied standards intelligence workflows. Please review local legal or institutional policies before production deployment.
 
-## Contact & Support
+## Notes
 
-For questions or issues:
-- 📧 Email: [project email]
-- 💬 GitHub Issues: [Link to issues]
-- 📋 Project Board: [Link to board if available]
+PRISM brings together two complementary workflows:
 
----
+1. recommendation and retrieval for standards intelligence
+2. lifecycle monitoring for BIS changes and updates
 
-**Last Updated**: September 2026
+Together, these workflows support a practical standards compliance and tender-preparation workflow for real-world procurement scenarios.
