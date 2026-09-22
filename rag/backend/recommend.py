@@ -593,6 +593,7 @@ def _finalise(description: str, groups: List[dict], llm,
     if include_tender:
         # The officer's own description names the item, because their words
         # are the ones the rest of their tender will use.
+        # Tender clauses stay English-only to preserve legal and normative meaning.
         response.tender_draft = build_draft(response, item_name=description)
 
     return response

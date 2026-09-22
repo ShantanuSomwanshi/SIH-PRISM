@@ -97,6 +97,19 @@ GEM_SEARCH_URL = os.getenv("GEM_SEARCH_URL", "https://mkp.gem.gov.in/search")
 # Live lookups are off by default: a demo must never depend on the network,
 # and this calls a government portal.
 GEM_LIVE_ENABLED = os.getenv("GEM_LIVE_ENABLED", "false").lower() == "true"
+
+QUERY_TRANSLATION_ENABLED = (
+    os.getenv("QUERY_TRANSLATION_ENABLED", "false").lower() == "true"
+)
+QUERY_LANGUAGE_MIN_CONFIDENCE = float(
+    os.getenv("QUERY_LANGUAGE_MIN_CONFIDENCE", "0.60")
+)
+INDICLID_CODE_DIR = _path_from_env(
+    "INDICLID_CODE_DIR", BACKEND_DIR / "indiclid" / "deployement" / "working"
+)
+INDICLID_MODEL_ROOT = _path_from_env(
+    "INDICLID_MODEL_ROOT", BACKEND_DIR / "indiclid" / "deployement" / "working"
+)
 GEM_TIMEOUT_SECONDS = float(os.getenv("GEM_TIMEOUT_SECONDS", "12"))
 GEM_CACHE_TTL_HOURS = float(os.getenv("GEM_CACHE_TTL_HOURS", "24"))
 GEM_REQUEST_DELAY_SECONDS = float(os.getenv("GEM_REQUEST_DELAY_SECONDS", "2"))
@@ -112,6 +125,34 @@ GEM_QUERY_NOISE_WORDS = {
     "nos", "with", "and", "for", "the", "of", "as", "per", "conforming",
     "required", "item", "approx",
 }
+
+# --- Voice input -----------------------------------------------------
+# A spoken query is sent to Groq's hosted Whisper, which translates speech
+# in any language it supports straight into English text in one call. The
+# English text then goes through the normal recommendation path. It reuses
+# GROQ_API_KEY; nothing is downloaded or run locally.
+#
+# Off by default: it sends the user's voice to an external service, and a
+# demo must not depend on the network unless someone chose that.
+AUDIO_INPUT_ENABLED = os.getenv("AUDIO_INPUT_ENABLED", "false").lower() == "true"
+
+# Must support the TRANSLATION task. whisper-large-v3-turbo does not - it
+# only transcribes, so it would return Hindi text instead of English.
+AUDIO_MODEL = os.getenv("AUDIO_MODEL", "whisper-large-v3").strip()
+
+# Whisper reports how sure it is about each segment. Below this average
+# log-probability the words are more guess than hearing, so PRISM asks the
+# user to repeat rather than searching on a mis-heard query.
+AUDIO_MIN_AVG_LOGPROB = float(os.getenv("AUDIO_MIN_AVG_LOGPROB", "-1.0"))
+
+# Above this, Whisper thinks the clip is mostly not speech. On silence or
+# noise it tends to invent a stock phrase ("Thank you."), and this is what
+# catches that.
+AUDIO_MAX_NO_SPEECH_PROB = float(os.getenv("AUDIO_MAX_NO_SPEECH_PROB", "0.6"))
+
+# Groq's own limit on the free tier is 25 MB. A 30-second browser
+# recording is well under 1 MB.
+AUDIO_MAX_FILE_MB = float(os.getenv("AUDIO_MAX_FILE_MB", "25"))
 
 # --- API security ---------------------------------------------------
 # Which front-end addresses may call the API from a browser.

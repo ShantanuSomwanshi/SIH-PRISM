@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 from fastapi import (
     Depends, FastAPI, File, Header, HTTPException, Request, UploadFile,
 )
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -38,6 +39,8 @@ from pydantic import BaseModel, Field
 from backend.config import (
     ALLOWED_ORIGINS,
     API_KEY,
+    AUDIO_INPUT_ENABLED,
+    AUDIO_MAX_FILE_MB,
     BACKEND_DIR,
     COLLECTION_NAME,
     INGEST_API_KEY,
@@ -46,6 +49,7 @@ from backend.config import (
     MAX_INGEST_DOCS,
     RATE_LIMIT_REQUESTS,
     MAX_QUERY_CHARS,
+    QUERY_TRANSLATION_ENABLED,
     REQUIRE_API_KEY,
     RATE_LIMIT_WINDOW_SECONDS,
 )
@@ -83,6 +87,11 @@ async def lifespan(app: FastAPI):
     logger.info("Building the retriever...")
     from backend.retriever import PrismHybridRetriever
     state["retriever"] = PrismHybridRetriever(verbose=False)
+
+    if QUERY_TRANSLATION_ENABLED:
+        logger.info("Loading IndicLID and distilled IndicTrans2 models...")
+        from backend.query_language import load_models
+        load_models()
 
     if os.getenv("GROQ_API_KEY"):
         from langchain_groq import ChatGroq
@@ -328,6 +337,137 @@ async def recommend_from_uploaded_document(file: UploadFile = File(...)):
             status_code=500,
             detail="Could not produce a recommendation from that document.",
         )
+
+
+# --- voice input ---------------------------------------------------------
+
+class AudioQuality(BaseModel):
+    """How sure Whisper was about what it heard."""
+    avg_logprob: Optional[float] = None
+    no_speech_prob: Optional[float] = None
+
+
+class AudioRecommendResponse(RecommendResponse):
+    """
+    A normal recommendation, plus what was heard.
+
+    Defined here rather than on RecommendResponse so the text and upload
+    routes return exactly what they did before. `transcript` is set only
+    when the recording was accepted; the frontend uses that to decide
+    whether to put the text in the search box.
+    """
+    transcript: Optional[str] = None
+    audio_quality: Optional[AudioQuality] = None
+
+
+AUDIO_RETRY_MESSAGE = (
+    "I couldn't hear that clearly enough to search on it. Please try again, "
+    "speaking close to the microphone, or type your query instead."
+)
+AUDIO_UNAVAILABLE_MESSAGE = (
+    "Voice input isn't available right now. Please try again in a moment, "
+    "or type your query instead."
+)
+
+
+@app.post("/api/recommend/audio", response_model=AudioRecommendResponse,
+          dependencies=[Depends(require_api_key)])
+async def recommend_from_audio(file: UploadFile = File(...)):
+    """
+    Recommend standards for a spoken query.
+
+    The recording goes to Groq's Whisper, which returns English text in one
+    step whatever language was spoken. That text is then recommended on
+    exactly as a typed query is.
+
+    Fail-safe: if the audio was unclear, silent, or the transcription call
+    failed, this returns a clarification asking the user to repeat or type,
+    and never searches on a guess.
+    """
+    from backend.audio_input import (
+        SUPPORTED_AUDIO_SUFFIXES, rejection_reason, transcribe_to_english,
+    )
+
+    if not AUDIO_INPUT_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Voice input is disabled. Set AUDIO_INPUT_ENABLED=true in .env.",
+        )
+
+    retriever = state.get("retriever")
+    llm = state.get("llm")
+
+    if retriever is None:
+        raise HTTPException(status_code=503, detail="Search index is not ready.")
+    if llm is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Language model is not configured. Set GROQ_API_KEY in .env.",
+        )
+
+    # The extension, not the content type: browsers label the same webm
+    # recording as audio/webm, video/webm or audio/webm;codecs=opus.
+    suffix = os.path.splitext(file.filename or "")[1].lower()
+    if suffix not in SUPPORTED_AUDIO_SUFFIXES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot read '{suffix or 'that file type'}' audio. Supported "
+                   "types: " + ", ".join(sorted(SUPPORTED_AUDIO_SUFFIXES)),
+        )
+
+    # Read at most one byte past the limit, so an oversized upload is
+    # refused without holding all of it in memory.
+    limit = int(AUDIO_MAX_FILE_MB * 1024 * 1024)
+    data = await file.read(limit + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="The recording is empty.")
+    if len(data) > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Recording is too large. The limit is {AUDIO_MAX_FILE_MB:g} MB.",
+        )
+
+    # Transcription is a network call of a few seconds. Running it in the
+    # thread pool keeps the server answering other requests meanwhile.
+    try:
+        heard = await run_in_threadpool(
+            transcribe_to_english, data, f"recording{suffix}"
+        )
+    except Exception:
+        logger.exception("Transcription failed for %r (%d bytes)",
+                         file.filename, len(data))
+        return AudioRecommendResponse(
+            clarification_needed=True, message=AUDIO_UNAVAILABLE_MESSAGE,
+        )
+
+    quality = AudioQuality(
+        avg_logprob=heard.get("avg_logprob"),
+        no_speech_prob=heard.get("no_speech_prob"),
+    )
+    reason = rejection_reason(heard)
+    if reason:
+        logger.info("Audio not searched: %s", reason)
+        return AudioRecommendResponse(
+            clarification_needed=True, message=AUDIO_RETRY_MESSAGE,
+            audio_quality=quality,
+        )
+
+    query = heard["text"][:MAX_QUERY_CHARS]
+    logger.info("Audio heard (%d chars, avg_logprob %.2f, no_speech %.2f)",
+                len(query), quality.avg_logprob, quality.no_speech_prob)
+
+    try:
+        result = recommend(query, retriever, llm)
+    except Exception:
+        logger.exception("Recommendation failed for spoken query %r", query[:100])
+        raise HTTPException(
+            status_code=500,
+            detail="Could not produce a recommendation. Please try again.",
+        )
+
+    return AudioRecommendResponse(
+        **result.model_dump(), transcript=query, audio_quality=quality,
+    )
 
 
 @app.get("/api/standards/references",

@@ -1,7 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const API_URL = 'http://127.0.0.1:8000/api/recommend';
 const UPLOAD_URL = 'http://127.0.0.1:8000/api/recommend/upload';
+const AUDIO_URL = 'http://127.0.0.1:8000/api/recommend/audio';
+
+// A spoken query is capped so an open microphone cannot run forever.
+const MAX_RECORDING_SECONDS = 30;
+
+// Formats to ask MediaRecorder for, best first. Chrome and Edge record
+// webm/opus, Safari records mp4, Firefox records ogg. The extension tells
+// the backend (and Whisper) what the bytes are.
+const RECORDING_FORMATS = [
+  { mime: 'audio/webm;codecs=opus', ext: '.webm' },
+  { mime: 'audio/webm', ext: '.webm' },
+  { mime: 'audio/mp4', ext: '.m4a' },
+  { mime: 'audio/ogg;codecs=opus', ext: '.ogg' },
+  { mime: 'audio/ogg', ext: '.ogg' },
+];
+
+const formatSeconds = (total) =>
+  `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 
 // Sent as X-API-Key when the backend has API_KEY set. Vite only exposes
 // variables beginning with VITE_, and anything it exposes ends up inside
@@ -23,16 +41,19 @@ const CONFIDENCE_STYLES = {
   high: {
     label: 'High confidence',
     note: 'Grounded in the retrieved standards',
+    definition: 'The recommendation closely matches the retrieved BIS standards and supporting evidence.',
     className: 'bg-green-50 text-green-800 border-green-200',
   },
   medium: {
     label: 'Medium confidence',
     note: 'Plausible, but verify before using in a tender',
+    definition: 'The recommendation is plausible, but the available evidence or product match is incomplete.',
     className: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   low: {
     label: 'Low confidence',
     note: 'Treat as a starting point only',
+    definition: 'The recommendation is only a starting point and needs careful verification.',
     className: 'bg-red-50 text-red-700 border-red-200',
   },
 };
@@ -49,28 +70,15 @@ const EXAMPLES = [
   'dc charging station for electric buses',
 ];
 
-// Render [PLACEHOLDER] blanks visibly. An officer scanning a draft needs
-// to find every gap at a glance; a placeholder set in the same colour as
-// the prose is a gap that ships.
-function ClauseText({ text }) {
-  const parts = String(text || '').split(/(\[[^\]]+\])/g);
-  return (
-    <p className="text-gray-700 leading-relaxed">
-      {parts.map((part, idx) =>
-        part.startsWith('[') && part.endsWith(']') ? (
-          <mark
-            key={idx}
-            className="bg-yellow-100 text-yellow-900 border border-yellow-300 rounded px-1 font-medium not-italic"
-          >
-            {part}
-          </mark>
-        ) : (
-          <React.Fragment key={idx}>{part}</React.Fragment>
-        )
-      )}
-    </p>
-  );
-}
+const DEMO_HISTORY_ENTRY = {
+  id: 'demo-history-entry',
+  standard: 'IS 15449 (Part 1): 2023',
+  title: 'Household sewing machines - General requirements',
+  versionStatus: 'Demo entry - replace with engine output',
+  confidence: 'high',
+  query: 'household zig-zag sewing machine head',
+  checkedAt: '2026-09-16T00:00:00.000Z',
+};
 
 export default function App() {
   const [query, setQuery] = useState('');
@@ -85,14 +93,88 @@ export default function App() {
   const [answers, setAnswers] = useState([]);
   const [asked, setAsked] = useState([]);
   const [picked, setPicked] = useState([]);      // current multi-select
-  const [copied, setCopied] = useState(false);
+  const [scraperOpen, setScraperOpen] = useState(false);
+  const [scraperStep, setScraperStep] = useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [recommendationHistory, setRecommendationHistory] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem('prism-recommendation-history');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEMO_HISTORY_ENTRY];
+    } catch {
+      return [DEMO_HISTORY_ENTRY];
+    }
+  });
+  const [updateCheckId, setUpdateCheckId] = useState(null);
+  const [updateMessages, setUpdateMessages] = useState({});
 
-  const runRequest = async (request, busyLabel) => {
+  const scraperSteps = [
+    { name: 'Connect to BIS portal', detail: 'Preparing standards catalogue request', source: 'BIS' },
+    { name: 'Scrape BIS product catalogue', detail: 'Collecting product standards and metadata', source: 'BIS' },
+    { name: 'Scrape GeM product catalogue', detail: 'Collecting marketplace category listings', source: 'GeM' },
+    { name: 'Update local catalogue files', detail: 'Writing standards.sqlite, gem_categories.csv and reference_graph.json', source: 'DATA' },
+  ];
+
+  // Home keeps the current search and result, and scrolls back to the input.
+  const goHome = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  const startScraper = () => {
+    setScraperStep(0);
+    setScraperOpen(true);
+  };
+
+  useEffect(() => {
+    if (!scraperOpen || scraperStep >= scraperSteps.length) return undefined;
+    // Give each simulated source step a slightly different processing time.
+    const stepDuration = 900 + Math.floor(Math.random() * 1600);
+    const timer = window.setTimeout(() => setScraperStep((step) => step + 1), stepDuration);
+    return () => window.clearTimeout(timer);
+  }, [scraperOpen, scraperStep]);
+
+  useEffect(() => {
+    if (!result || result.clarification_needed || !result.primary_standard) return;
+    const entry = {
+      id: `${result.primary_standard}-${Date.now()}`,
+      standard: result.primary_standard,
+      title: result.title || 'Indian Standard recommendation',
+      versionStatus: result.version_status || 'Version status not available',
+      confidence: result.confidence || 'low',
+      query: query.trim() || fileName || 'Uploaded tender document',
+      checkedAt: new Date().toISOString(),
+    };
+
+    setRecommendationHistory((current) => {
+      const alreadySaved = current.some(
+        (item) => item.standard === entry.standard && item.query === entry.query
+      );
+      if (alreadySaved) return current;
+      const next = [entry, ...current].slice(0, 10);
+      try {
+        window.localStorage.setItem('prism-recommendation-history', JSON.stringify(next));
+      } catch {
+        // History still works for the current session when storage is unavailable.
+      }
+      return next;
+    });
+  }, [result]);
+
+  const checkForUpdates = (entry) => {
+    setUpdateCheckId(entry.id);
+    setUpdateMessages((current) => ({ ...current, [entry.id]: null }));
+    window.setTimeout(() => {
+      setUpdateCheckId(null);
+      setUpdateMessages((current) => ({
+        ...current,
+        [entry.id]: 'No newer BIS revision found in the prototype catalogue.',
+      }));
+    }, 1600);
+  };
+
+  const runRequest = async (request, busyLabel, onSuccess) => {
     setLoading(busyLabel);
     setResult(null);
     setError(null);
     setPicked([]);
-    setCopied(false);
     try {
       const res = await request();
       if (!res.ok) {
@@ -106,7 +188,9 @@ export default function App() {
         }
         throw new Error(detail);
       }
-      setResult(await res.json());
+      const data = await res.json();
+      setResult(data);
+      if (onSuccess) onSuccess(data);
     } catch (err) {
       setError(
         err.message === 'Failed to fetch'
@@ -148,6 +232,119 @@ export default function App() {
     );
   };
 
+  // --- voice input ---------------------------------------------------
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const [micError, setMicError] = useState(null);
+  const recorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timersRef = useRef({ tick: null, stop: null });
+
+  const clearRecordingTimers = () => {
+    window.clearInterval(timersRef.current.tick);
+    window.clearTimeout(timersRef.current.stop);
+    timersRef.current = { tick: null, stop: null };
+  };
+
+  // Release the microphone - otherwise the browser keeps showing it in use.
+  const releaseMicrophone = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  // Never leave the microphone open if the page goes away mid-recording.
+  useEffect(() => () => {
+    clearRecordingTimers();
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+    releaseMicrophone();
+  }, []);
+
+  const sendRecording = (blob, ext) => {
+    setFileName('');
+    setAnswers([]);
+    setAsked([]);
+    const form = new FormData();
+    form.append('file', blob, 'recording' + ext);
+    runRequest(
+      () => fetch(AUDIO_URL, { method: 'POST', headers: authHeaders(), body: form }),
+      'Transcribing...',
+      // Show what was heard, so it can be checked and edited. The backend
+      // sets `transcript` only for recordings it accepted - a rejected clip
+      // (silence often comes back as an invented "Thank you.") never lands
+      // in the search box.
+      (data) => { if (data?.transcript) setQuery(data.transcript); }
+    );
+  };
+
+  const startRecording = async () => {
+    setMicError(null);
+    if (!navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder === 'undefined') {
+      setMicError("This browser can't record audio. Please type your query instead.");
+      return;
+    }
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      setMicError(
+        err?.name === 'NotAllowedError' || err?.name === 'SecurityError'
+          ? "Microphone access was blocked. Allow the microphone for this site (the icon in the browser's address bar), then try again."
+          : err?.name === 'NotFoundError'
+            ? 'No microphone was found. Connect one, or type your query instead.'
+            : 'Could not start the microphone. Please type your query instead.'
+      );
+      return;
+    }
+
+    const format = RECORDING_FORMATS.find((f) => MediaRecorder.isTypeSupported(f.mime));
+    let recorder;
+    try {
+      recorder = format ? new MediaRecorder(stream, { mimeType: format.mime }) : new MediaRecorder(stream);
+    } catch {
+      stream.getTracks().forEach((track) => track.stop());
+      setMicError('Could not start recording. Please type your query instead.');
+      return;
+    }
+
+    streamRef.current = stream;
+    recorderRef.current = recorder;
+    chunksRef.current = [];
+
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) chunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => {
+      clearRecordingTimers();
+      releaseMicrophone();
+      setRecording(false);
+      const type = recorder.mimeType || format?.mime || 'audio/webm';
+      const blob = new Blob(chunksRef.current, { type });
+      chunksRef.current = [];
+      if (blob.size === 0) {
+        setMicError('Nothing was recorded. Please try again.');
+        return;
+      }
+      const ext = type.includes('mp4') ? '.m4a' : type.includes('ogg') ? '.ogg' : '.webm';
+      sendRecording(blob, ext);
+    };
+
+    recorder.start();
+    setRecordSeconds(0);
+    setRecording(true);
+    timersRef.current.tick = window.setInterval(
+      () => setRecordSeconds((seconds) => seconds + 1), 1000
+    );
+    timersRef.current.stop = window.setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop();
+    }, MAX_RECORDING_SECONDS * 1000);
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+  };
+
   // A fresh search. Any answers from a previous question belonged to a
   // previous description and must not be carried over - that would narrow
   // the new search to standards the officer chose for a different item.
@@ -187,48 +384,53 @@ export default function App() {
     );
   };
 
-  const draftAsText = (draft) =>
-    (draft?.clauses || [])
-      .map((c, i) => `${i + 1}. ${c.heading.toUpperCase()}\n${c.text}`)
-      .join('\n\n') + `\n\n${'-'.repeat(60)}\n${draft?.caveat || ''}`;
-
-  const copyDraft = async () => {
-    try {
-      await navigator.clipboard.writeText(draftAsText(result.tender_draft));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   const confidence =
     CONFIDENCE_STYLES[result?.confidence] || CONFIDENCE_STYLES.low;
   const usedOcr = result?.sources?.some((s) => s.ocr);
   const question = result?.questions?.[0];
   const gem = result?.gem_categories;
-  const draft = result?.tender_draft;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
-      <div className="bg-white border-b px-8 py-2 flex justify-between text-xs text-gray-600">
-        <span>Government of India portal concept</span>
-        <span>English</span>
+      {/* Fixed at the top: the title and the three navigation buttons stay
+          visible while the input, output and GeM panel scroll underneath. */}
+      <div className="sticky top-0 z-40">
+        <div className="bg-white border-b px-8 py-2 flex justify-between text-xs text-gray-600">
+          <span>Government of India portal concept</span>
+          <span>English</span>
+        </div>
+
+        <header className="bg-white border-b px-8 py-4 flex flex-wrap justify-between items-center gap-3 shadow-sm">
+          <div>
+            <h1 className="text-xl font-bold text-red-900 tracking-wide">PRISM</h1>
+            <p className="text-xs text-gray-500">Procurement Recommendation for Indian Standards</p>
+          </div>
+          <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-gray-700">
+            <button
+              onClick={goHome}
+              className="text-red-900 border-b-2 border-red-900 pb-1 px-1 hover:text-red-800"
+            >
+              Home
+            </button>
+            <button
+              onClick={startScraper}
+              className="bg-red-800 hover:bg-red-900 text-white text-xs font-semibold px-4 py-2.5 rounded shadow-sm transition-colors"
+            >
+              Refresh catalogues
+            </button>
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="bg-white border border-red-800 text-red-800 hover:bg-red-50 text-xs font-semibold px-4 py-2.5 rounded shadow-sm transition-colors"
+            >
+              Recommendation history
+            </button>
+          </nav>
+        </header>
       </div>
 
-      <header className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
-        <div>
-          <h1 className="text-xl font-bold text-red-900 tracking-wide">Manak Sahayak</h1>
-          <p className="text-xs text-gray-500">Procurement Recommendation for Indian Standards</p>
-        </div>
-        <nav className="flex space-x-6 text-sm font-medium text-gray-700">
-          <span className="cursor-pointer hover:text-red-900">Home</span>
-          <span className="cursor-pointer text-red-900 border-b-2 border-red-900 pb-1">Standards</span>
-          <span className="cursor-pointer hover:text-red-900">Certification</span>
-        </nav>
-      </header>
-
-      <main className="max-w-4xl mx-auto py-10 px-4">
+      <main className="max-w-7xl mx-auto py-10 px-4 grid gap-6 items-start lg:grid-cols-[minmax(0,1fr)_22rem]">
+        {/* Left column: input, then output */}
+        <div className="min-w-0">
         <div className="flex justify-between items-start mb-6">
           <div>
             <span className="text-xs font-semibold text-red-800 uppercase tracking-wider">BIS Digital Service Module</span>
@@ -260,16 +462,47 @@ export default function App() {
             }}
           />
 
-          <div className="mt-4 flex items-center justify-between">
-            <button
-              onClick={() => handleSearch()}
-              disabled={Boolean(loading)}
-              className="bg-red-800 hover:bg-red-900 disabled:bg-gray-400 text-white text-sm font-medium px-5 py-2.5 rounded shadow-sm transition-colors"
-            >
-              {loading || 'Find Standards'}
-            </button>
-            <span className="text-xs text-gray-400">Ctrl+Enter to search</span>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => handleSearch()}
+                disabled={Boolean(loading) || recording}
+                className="bg-red-800 hover:bg-red-900 disabled:bg-gray-400 text-white text-sm font-medium px-5 py-2.5 rounded shadow-sm transition-colors"
+              >
+                {loading || 'Find Standards'}
+              </button>
+              {/* Voice input: click to start, click again to stop. */}
+              <button
+                onClick={recording ? stopRecording : startRecording}
+                disabled={Boolean(loading)}
+                aria-pressed={recording}
+                title={`Speak your query in English or an Indian language (up to ${MAX_RECORDING_SECONDS} seconds)`}
+                className={
+                  'text-sm font-medium px-4 py-2.5 rounded shadow-sm border transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300 ' +
+                  (recording
+                    ? 'bg-red-50 border-red-800 text-red-800'
+                    : 'bg-white border-red-800 text-red-800 hover:bg-red-50')
+                }
+              >
+                {recording ? (
+                  <span className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 rounded-full bg-red-700 animate-pulse" />
+                    Recording {formatSeconds(recordSeconds)} - click to stop
+                  </span>
+                ) : loading === 'Transcribing...' ? (
+                  'Transcribing...'
+                ) : (
+                  'Speak'
+                )}
+              </button>
+            </div>
+            <span className="text-xs text-gray-400">
+              Ctrl+Enter to search, or click Speak (up to {MAX_RECORDING_SECONDS} s)
+            </span>
           </div>
+          {micError && (
+            <p className="mt-2 text-xs text-red-800">{micError}</p>
+          )}
 
           <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-2 text-xs text-gray-500">
             <span>Try an example:</span>
@@ -358,9 +591,9 @@ export default function App() {
             {question?.why && (
               <p className="text-xs text-amber-800 mt-1 mb-3 italic">{question.why}</p>
             )}
-            {!question && (
-              <p className="text-xs text-amber-800 mt-1 mb-3">{result.message}</p>
-            )}
+            {/* The message is already shown above when there is no structured
+                question - showing it again here printed it twice. */}
+            {!question && <div className="mb-3" />}
 
             {question ? (
               <>
@@ -445,7 +678,10 @@ export default function App() {
             <div className="flex justify-between items-start border-b pb-3 mb-4 gap-4">
               <h3 className="font-bold text-gray-900 text-base">Recommendation Summary</h3>
               <div className="text-right">
-                <div className={'text-xs px-2.5 py-1 rounded border font-medium inline-block ' + confidence.className}>
+                <div
+                  title={confidence.definition}
+                  className={'text-xs px-2.5 py-1 rounded border font-medium inline-block cursor-help ' + confidence.className}
+                >
                   <div>{confidence.label}</div>
                   <div className="font-normal opacity-80">{confidence.note}</div>
                 </div>
@@ -561,10 +797,15 @@ export default function App() {
           </div>
         )}
 
-        {/* Where to buy it on GeM */}
-        {gem && (
-          <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-            <div className="flex justify-between items-start border-b pb-3 mb-4 gap-4">
+        </div>
+
+        {/* Right column: GeM catalogues - where the recommended item could be
+            bought on the Government e-Marketplace. Always present, so the
+            layout does not jump when a result arrives. */}
+        <aside className="min-w-0">
+        {gem ? (
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div className="flex flex-wrap justify-between items-start border-b pb-3 mb-4 gap-2">
               <div>
                 <h3 className="font-bold text-gray-900 text-base">GeM Marketplace</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -642,79 +883,217 @@ export default function App() {
               <p className="mt-2 text-xs text-gray-500">{gem.caveat}</p>
             )}
           </div>
-        )}
-
-        {/* Draft tender clauses */}
-        {draft?.clauses?.length > 0 && (
-          <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-            <div className="flex justify-between items-start border-b pb-3 mb-4 gap-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base">Draft Tender Clauses</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  A starting draft to edit - not tender-ready text
-                </p>
-              </div>
-              <button
-                onClick={copyDraft}
-                className="text-xs border border-gray-300 hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded whitespace-nowrap"
-              >
-                {copied ? 'Copied' : 'Copy all'}
-              </button>
-            </div>
-
-            <div className="space-y-4 text-sm">
-              {draft.clauses.map((clause, idx) => (
-                <div key={idx}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-gray-800">
-                      {idx + 1}. {clause.heading}
-                    </span>
-                    {clause.grounded ? (
-                      <span
-                        className="text-[10px] uppercase tracking-wide bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded"
-                        title={clause.basis || ''}
-                      >
-                        from the standard
-                      </span>
-                    ) : (
-                      <span
-                        className="text-[10px] uppercase tracking-wide bg-yellow-50 text-yellow-800 border border-yellow-300 px-1.5 py-0.5 rounded"
-                        title={clause.basis || ''}
-                      >
-                        for you to complete
-                      </span>
-                    )}
-                  </div>
-                  <ClauseText text={clause.text} />
-                  {clause.basis && (
-                    <p className="text-[11px] text-gray-400 mt-1">{clause.basis}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {draft.placeholders?.length > 0 && (
-              <p className="mt-4 pt-3 border-t text-xs text-gray-600">
-                <span className="font-semibold">
-                  {draft.placeholders.length} blank
-                  {draft.placeholders.length === 1 ? '' : 's'} to fill:
-                </span>{' '}
-                {draft.placeholders.join(' · ')}
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div className="border-b pb-3 mb-4">
+              <h3 className="font-bold text-gray-900 text-base">GeM Marketplace</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Where this could be purchased on the Government e-Marketplace
               </p>
-            )}
-
-            <p className="mt-3 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded p-3">
-              {draft.caveat}
+            </div>
+            <p className="text-sm text-gray-600">
+              {loading
+                ? 'Looking for matching GeM categories...'
+                : result?.clarification_needed
+                  ? 'GeM categories will appear once PRISM settles on a standard.'
+                  : 'GeM categories will appear here after a recommendation.'}
             </p>
           </div>
         )}
+        </aside>
+
       </main>
 
-      <footer className="max-w-4xl mx-auto px-4 pb-10 text-xs text-gray-500">
+      <footer className="max-w-7xl mx-auto px-4 pb-10 text-xs text-gray-500">
         PRISM is a decision-support prototype. Recommendations are not a
         determination of legal or contractual compliance, and certification
         requirements must be verified against current BIS listings.
       </footer>
+
+      {scraperOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 py-8">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalogue-refresh-title"
+            className="w-full max-w-xl rounded-lg bg-white shadow-2xl border border-gray-200"
+          >
+            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-red-800">Catalogue refresh</p>
+                <h2 id="catalogue-refresh-title" className="mt-1 text-lg font-bold text-gray-900">
+                  Updating BIS and GeM sources
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {scraperStep >= scraperSteps.length
+                    ? 'Both product catalogues are ready for the next search.'
+                    : 'The prototype is simulating the collection workflow.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setScraperOpen(false)}
+                aria-label="Close catalogue refresh"
+                className="text-2xl leading-none text-gray-400 hover:text-gray-700"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <div className="mb-5 flex items-center gap-3 rounded border border-gray-200 bg-gray-50 px-4 py-3">
+                <span className={
+                  'h-2.5 w-2.5 rounded-full ' +
+                  (scraperStep >= scraperSteps.length ? 'bg-green-500' : 'bg-amber-500 animate-pulse')
+                } />
+                <span className="text-sm font-medium text-gray-700">
+                  {scraperStep >= scraperSteps.length ? 'Refresh complete' : 'Refresh in progress'}
+                </span>
+                <span className="ml-auto text-xs text-gray-500">
+                  {Math.min(scraperStep, scraperSteps.length)} / {scraperSteps.length} steps
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {scraperSteps.map((step, index) => {
+                  const complete = scraperStep > index;
+                  const active = scraperStep === index;
+                  return (
+                    <div key={step.name} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className={
+                          'flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold ' +
+                          (complete
+                            ? 'border-green-600 bg-green-600 text-white'
+                            : active
+                              ? 'border-red-800 bg-red-50 text-red-800'
+                              : 'border-gray-300 bg-white text-gray-400')
+                        }>
+                          {complete ? '✓' : index + 1}
+                        </span>
+                        {index < scraperSteps.length - 1 && (
+                          <span className={'mt-1 h-7 w-px ' + (complete ? 'bg-green-500' : 'bg-gray-200')} />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 pb-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className={'text-sm font-semibold ' + (active || complete ? 'text-gray-900' : 'text-gray-400')}>
+                            {step.name}
+                          </p>
+                          <span className={'shrink-0 text-[10px] font-semibold uppercase tracking-wide ' + (active || complete ? 'text-red-800' : 'text-gray-400')}>
+                            {step.source}
+                          </span>
+                        </div>
+                        <p className={'mt-1 text-xs ' + (active ? 'text-gray-600' : 'text-gray-400')}>
+                          {complete ? 'Completed successfully' : active ? step.detail : 'Waiting'}
+                        </p>
+                        {active && (
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                            <div className="h-full w-2/3 animate-pulse rounded-full bg-red-800" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={() => setScraperOpen(false)}
+                disabled={scraperStep < scraperSteps.length}
+                className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {scraperStep >= scraperSteps.length ? 'Done' : 'Running...'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 py-8">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-title"
+            className="w-full max-w-lg rounded-lg bg-white shadow-2xl border border-gray-200"
+          >
+            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-red-800">Search history</p>
+                <h2 id="history-title" className="mt-1 text-lg font-bold text-gray-900">
+                  Previously recommended standards
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Saved in this browser for quick review.
+                </p>
+              </div>
+              <button
+                onClick={() => setHistoryOpen(false)}
+                aria-label="Close recommendation history"
+                className="text-2xl leading-none text-gray-400 hover:text-gray-700"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="max-h-96 overflow-y-auto px-6 py-5">
+              {recommendationHistory.length === 0 ? (
+                <div className="rounded border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-center">
+                  <p className="text-sm font-medium text-gray-700">No recommendations yet</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Completed standard recommendations will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recommendationHistory.map((entry) => (
+                    <div key={entry.id} className="rounded border border-gray-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-red-900">{entry.standard}</p>
+                          <p className="mt-0.5 text-sm font-medium text-gray-800">{entry.title}</p>
+                          <p className="mt-1 truncate text-xs text-gray-500" title={entry.query}>
+                            Search: {entry.query}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                          {entry.confidence}
+                        </span>
+                      </div>
+                      <p className="mt-3 border-t border-gray-100 pt-2 text-xs text-gray-500">
+                        {entry.versionStatus}
+                      </p>
+                      <button
+                        onClick={() => checkForUpdates(entry)}
+                        disabled={updateCheckId === entry.id}
+                        className="mt-3 rounded border border-red-800 px-3 py-1.5 text-xs font-semibold text-red-800 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+                      >
+                        {updateCheckId === entry.id ? 'Checking BIS revisions...' : 'Check for updates'}
+                      </button>
+                      {updateMessages[entry.id] && (
+                        <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+                          {updateMessages[entry.id]}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={() => setHistoryOpen(false)}
+                className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

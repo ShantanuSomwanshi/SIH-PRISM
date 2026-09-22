@@ -29,3 +29,7 @@ backend/gem_cache/
 # HTML saved by "gem search --dump" while tuning the page parser.
 *.html
 !frontend/index.html
+
+# IndicLID model weights - 250 MB to 1.1 GB each, far over GitHub's 100 MB
+# file limit. Download them separately (see backend/.env.example).
+backend/indiclid/deployement/working/models/
