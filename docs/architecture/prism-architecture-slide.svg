@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" width="1200" height="820" role="img" aria-label="PRISM system architecture">
+<defs>
+<marker id="aReq" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#d9660f"/></marker>
+<marker id="aReqs" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M9 1 L1 5 L9 9 z" fill="#d9660f"/></marker>
+<marker id="aData" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#0f766e"/></marker>
+<marker id="aDatas" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M9 1 L1 5 L9 9 z" fill="#0f766e"/></marker>
+<marker id="aOff" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#9aa1ad"/></marker>
+<marker id="aOffs" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M9 1 L1 5 L9 9 z" fill="#9aa1ad"/></marker>
+<marker id="aLine" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#56627a"/></marker>
+<marker id="aLines" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M9 1 L1 5 L9 9 z" fill="#56627a"/></marker>
+<marker id="aFlow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#334155"/></marker>
+<marker id="aFlows" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M9 1 L1 5 L9 9 z" fill="#334155"/></marker>
+<marker id="aBack" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#7c3aed"/></marker>
+<marker id="aBacks" viewBox="0 0 10 10" refX="1.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M9 1 L1 5 L9 9 z" fill="#7c3aed"/></marker>
+</defs>
+<rect width="1200" height="820" fill="#ffffff"/>
+<rect x="6" y="6" width="1188" height="102" rx="10" fill="#dcecff" stroke="none" stroke-width="1.4"/>
+<text x="20" y="38" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="600" fill="#5d6780" text-anchor="start">L1</text>
+<text x="20" y="64" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">Client</text>
+<rect x="172" y="13" width="200" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="188" y="42" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Officer</text>
+<text x="188" y="66" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">states the need</text>
+<text x="188" y="88" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">any browser</text>
+<rect x="398" y="13" width="470" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="414" y="42" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Web app</text>
+<text x="414" y="66" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">type  ·  upload a tender  ·  speak</text>
+<text x="414" y="88" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">React · Vite · Tailwind CSS</text>
+<rect x="894" y="13" width="290" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="910" y="42" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">History</text>
+<text x="910" y="66" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">past standards · re-check for updates</text>
+<text x="910" y="88" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">browser localStorage</text>
+<path d="M374 57.0 L 394 57.0" fill="none" stroke="#d9660f" stroke-width="2.4" marker-end="url(#aReq)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M870 57.0 L 890 57.0" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#aFlow)" marker-start="url(#aFlows)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="6" y="114" width="1188" height="102" rx="10" fill="#e8e3fb" stroke="none" stroke-width="1.4"/>
+<text x="20" y="146" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="600" fill="#5d6780" text-anchor="start">L2</text>
+<text x="20" y="172" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">API</text>
+<rect x="172" y="121" width="1012" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="188" y="150" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Secure API gateway</text>
+<text x="188" y="174" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">API key  ·  rate and size limits  ·  CORS allow-list</text>
+<text x="188" y="196" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">FastAPI · Uvicorn · Pydantic</text>
+<path d="M633 103 L 633 119" fill="none" stroke="#d9660f" stroke-width="2.4" marker-end="url(#aReq)" marker-start="url(#aReqs)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1039.0 103 L 1039.0 119" fill="none" stroke="#d9660f" stroke-width="2.4" marker-end="url(#aReq)" marker-start="url(#aReqs)" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1049.0" y="116" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#d9660f" text-anchor="start">re-check</text>
+<rect x="6" y="222" width="1188" height="102" rx="10" fill="#d8f2f6" stroke="none" stroke-width="1.4"/>
+<text x="20" y="254" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="600" fill="#5d6780" text-anchor="start">L3</text>
+<text x="20" y="280" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">Input</text>
+<rect x="172" y="229" width="360" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="188" y="258" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Tender reader</text>
+<text x="188" y="282" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">PDF / Word, OCR for scans</text>
+<text x="188" y="304" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">PyMuPDF · pdfplumber · Tesseract</text>
+<rect x="732" y="229" width="452" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="748" y="258" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Multilingual voice</text>
+<text x="748" y="282" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">Indian languages → English</text>
+<text x="748" y="304" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">MediaRecorder · Groq Whisper large-v3</text>
+<path d="M275.6 211 L 275.6 227" fill="none" stroke="#d9660f" stroke-width="2.4" marker-end="url(#aReq)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M958.0 211 L 958.0 227" fill="none" stroke="#d9660f" stroke-width="2.4" marker-end="url(#aReq)" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="557" y="306" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="600" fill="#d9660f" text-anchor="start">text</text>
+<text x="701.5999999999999" y="256" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="600" fill="#7c3aed" text-anchor="end">questions[] ↑</text>
+<text x="701.5999999999999" y="274" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="600" fill="#7c3aed" text-anchor="end">answers[] ↓</text>
+<rect x="6" y="330" width="1188" height="150" rx="10" fill="#fff0c7" stroke="none" stroke-width="1.4"/>
+<text x="20" y="362" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="600" fill="#5d6780" text-anchor="start">L4</text>
+<text x="20" y="388" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">Domain-</text>
+<text x="20" y="413" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">specific</text>
+<text x="20" y="438" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">RAG engine</text>
+<rect x="172" y="338" width="1012" height="134" rx="8" fill="#f7f4ee" stroke="#56627a" stroke-width="1.6"/>
+<rect x="184.0" y="347" width="183.2" height="98" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.5"/>
+<text x="195.0" y="373" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="18.5" font-weight="600" fill="#172033" text-anchor="start">Hybrid search</text>
+<text x="195.0" y="396" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">dense + BM25,</text>
+<text x="195.0" y="414" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">RRF → rerank</text>
+<text x="195.0" y="436" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="500" fill="#3f5a86" text-anchor="start">bge-m3·BM25·mmarco</text>
+<rect x="385.2" y="347" width="183.2" height="98" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.5"/>
+<text x="396.2" y="373" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="18.5" font-weight="600" fill="#172033" text-anchor="start">Clarifier</text>
+<text x="396.2" y="396" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">score · margin ·</text>
+<text x="396.2" y="414" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">family-tie test</text>
+<text x="396.2" y="436" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="500" fill="#3f5a86" text-anchor="start">rule-based Python</text>
+<rect x="586.4" y="347" width="183.2" height="98" rx="6" fill="#f3edff" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="6 3"/>
+<text x="597.4" y="373" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="18.5" font-weight="600" fill="#7c3aed" text-anchor="start">Follow-up</text>
+<text x="597.4" y="396" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">PART / ROLE /</text>
+<text x="597.4" y="414" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">PRODUCT options</text>
+<text x="597.4" y="436" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="500" fill="#3f5a86" text-anchor="start">clarify.py · React</text>
+<rect x="787.5999999999999" y="347" width="183.2" height="98" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.5"/>
+<text x="798.5999999999999" y="373" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="18.5" font-weight="600" fill="#172033" text-anchor="start">Grounded LLM</text>
+<text x="798.5999999999999" y="396" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">top-k context only,</text>
+<text x="798.5999999999999" y="414" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">JSON + citations</text>
+<text x="798.5999999999999" y="436" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="500" fill="#3f5a86" text-anchor="start">Groq GPT-OSS-120B</text>
+<rect x="988.8" y="347" width="183.2" height="98" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.5"/>
+<text x="999.8" y="373" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="18.5" font-weight="600" fill="#172033" text-anchor="start">Enrichment</text>
+<text x="999.8" y="396" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">allied IS, GeM,</text>
+<text x="999.8" y="414" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14.5" font-weight="400" fill="#172033" text-anchor="start">tender clauses</text>
+<text x="999.8" y="436" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="13" font-weight="500" fill="#3f5a86" text-anchor="start">graph · templates</text>
+<path d="M369.2 396.0 L 382.2 396.0" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#aFlow)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M570.4 396.0 L 583.4 396.0" fill="none" stroke="#7c3aed" stroke-width="2.4" marker-end="url(#aBack)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M771.5999999999999 396.0 L 784.5999999999999 396.0" fill="none" stroke="#7c3aed" stroke-width="2.4" marker-end="url(#aBack)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M972.8 396.0 L 985.8 396.0" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#aFlow)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M476.79999999999995 446 L 476.79999999999995 456 L 879.1999999999999 456 L 879.1999999999999 448" fill="none" stroke="#334155" stroke-width="2.2" marker-end="url(#aFlow)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="648.0" y="447" width="60" height="17" rx="3" fill="#f7f4ee" stroke="none" stroke-width="1.4"/>
+<text x="678.0" y="461" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#334155" text-anchor="middle">resolved</text>
+<path d="M550 211 L 550 327" fill="none" stroke="#d9660f" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M958.0 319 L 958.0 327" fill="none" stroke="#d9660f" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M958.0 327 L 716.5999999999999 327 M702.5999999999999 327 L 275.6 327" fill="none" stroke="#d9660f" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M275.6 319 L 275.6 345" fill="none" stroke="#d9660f" stroke-width="2.4" marker-end="url(#aReq)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M709.5999999999999 345 L 709.5999999999999 212" fill="none" stroke="#7c3aed" stroke-width="2.4" stroke-dasharray="7 4" marker-end="url(#aBack)" marker-start="url(#aBacks)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="6" y="486" width="1188" height="102" rx="10" fill="#daf2e5" stroke="none" stroke-width="1.4"/>
+<text x="20" y="518" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="600" fill="#5d6780" text-anchor="start">L5</text>
+<text x="20" y="544" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">Knowledge</text>
+<rect x="172.0" y="493" width="236.5" height="88" rx="6" fill="#ffffff" stroke="#9aa1ad" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="188.0" y="522" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#5d6780" text-anchor="start">Query cache</text>
+<rect x="325.1" y="505" width="73.39999999999999" height="22" rx="11" fill="#ffffff" stroke="#9aa1ad" stroke-width="1.2"/>
+<text x="361.8" y="521" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="600" fill="#5d6780" text-anchor="middle">PLANNED</text>
+<text x="188.0" y="546" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#5d6780" text-anchor="start">repeat / similar queries</text>
+<path d="M290.25 474 L 290.25 491" fill="none" stroke="#9aa1ad" stroke-width="2.4" stroke-dasharray="5 4" marker-end="url(#aOff)" marker-start="url(#aOffs)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="430.5" y="493" width="236.5" height="88" rx="6" fill="#e9f4f1" stroke="#0f766e" stroke-width="1.6"/>
+<text x="446.5" y="522" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#0f766e" text-anchor="start">Standards index</text>
+<text x="446.5" y="546" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">18 BIS standards</text>
+<text x="446.5" y="568" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">ChromaDB + BM25 index</text>
+<path d="M548.75 474 L 548.75 491" fill="none" stroke="#0f766e" stroke-width="2.4" marker-end="url(#aData)" marker-start="url(#aDatas)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="689.0" y="493" width="236.5" height="88" rx="6" fill="#e9f4f1" stroke="#0f766e" stroke-width="1.6"/>
+<text x="705.0" y="522" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#0f766e" text-anchor="start">Reference graph</text>
+<text x="705.0" y="546" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">which cites which</text>
+<text x="705.0" y="568" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">JSON graph</text>
+<path d="M807.25 474 L 807.25 491" fill="none" stroke="#0f766e" stroke-width="2.4" marker-end="url(#aData)" marker-start="url(#aDatas)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="947.5" y="493" width="236.5" height="88" rx="6" fill="#e9f4f1" stroke="#0f766e" stroke-width="1.6"/>
+<text x="963.5" y="522" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#0f766e" text-anchor="start">GeM catalogue</text>
+<text x="963.5" y="546" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">9,761 categories</text>
+<text x="963.5" y="568" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">CSV snapshot</text>
+<path d="M1065.75 474 L 1065.75 491" fill="none" stroke="#0f766e" stroke-width="2.4" marker-end="url(#aData)" marker-start="url(#aDatas)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="6" y="594" width="1188" height="102" rx="10" fill="#fde4d4" stroke="none" stroke-width="1.4"/>
+<text x="20" y="626" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="600" fill="#5d6780" text-anchor="start">L6</text>
+<text x="20" y="652" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">Offline</text>
+<text x="20" y="677" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">build</text>
+<rect x="172.0" y="601" width="236.5" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="188.0" y="630" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Read PDFs</text>
+<text x="188.0" y="654" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">OCR, clean-up</text>
+<text x="188.0" y="676" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">PyMuPDF · Tesseract</text>
+<path d="M411.5 645.0 L 427.5 645.0" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#aFlow)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="430.5" y="601" width="236.5" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="446.5" y="630" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Catalogue &amp; index</text>
+<text x="446.5" y="654" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">chunk + embed</text>
+<text x="446.5" y="676" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">LangChain · bge-m3</text>
+<path d="M670.0 645.0 L 686.0 645.0" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#aFlow)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M548.75 599 L 548.75 583" fill="none" stroke="#0f766e" stroke-width="2.4" marker-end="url(#aData)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="689.0" y="601" width="236.5" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="705.0" y="630" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Reference graph</text>
+<text x="705.0" y="654" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">cited standards</text>
+<text x="705.0" y="676" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">regex extraction</text>
+<path d="M807.25 599 L 807.25 583" fill="none" stroke="#0f766e" stroke-width="2.4" marker-end="url(#aData)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="947.5" y="601" width="236.5" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="963.5" y="630" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">GeM snapshot</text>
+<text x="963.5" y="654" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">category list</text>
+<text x="963.5" y="676" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">GeM CSV export</text>
+<path d="M1065.75 599 L 1065.75 583" fill="none" stroke="#0f766e" stroke-width="2.4" marker-end="url(#aData)" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="6" y="702" width="1188" height="102" rx="10" fill="#fbdfe5" stroke="none" stroke-width="1.4"/>
+<text x="20" y="734" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="17" font-weight="600" fill="#5d6780" text-anchor="start">L7</text>
+<text x="20" y="760" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">BIS</text>
+<text x="20" y="785" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="21" font-weight="600" fill="#172033" text-anchor="start">collector</text>
+<text x="176.0" y="742" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15" font-weight="600" fill="#a8321f" text-anchor="start">planned: live status</text>
+<text x="176.0" y="762" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15" font-weight="600" fill="#a8321f" text-anchor="start">into the catalogue</text>
+<text x="176.0" y="782" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="400" fill="#a8321f" text-anchor="start">(not connected yet)</text>
+<rect x="430.5" y="709" width="236.5" height="88" rx="6" fill="#e9f4f1" stroke="#0f766e" stroke-width="1.6"/>
+<text x="446.5" y="738" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#0f766e" text-anchor="start">Status DB</text>
+<text x="446.5" y="762" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">new / revised / withdrawn</text>
+<text x="446.5" y="784" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">SQLite</text>
+<rect x="689.0" y="709" width="236.5" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="705.0" y="738" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Scraper</text>
+<text x="705.0" y="762" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">fetches changed standards</text>
+<text x="705.0" y="784" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">Selenium · BeautifulSoup</text>
+<rect x="947.5" y="709" width="236.5" height="88" rx="6" fill="#ffffff" stroke="#56627a" stroke-width="1.6"/>
+<text x="963.5" y="738" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="20" font-weight="600" fill="#172033" text-anchor="start">Periodic hashing</text>
+<text x="963.5" y="762" font-family="'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif" font-size="15.5" font-weight="400" fill="#172033" text-anchor="start">keyword + page hashes</text>
+<text x="963.5" y="784" font-family="'IBM Plex Mono', ui-monospace, monospace" font-size="14" font-weight="500" fill="#3f5a86" text-anchor="start">APScheduler · SHA-256</text>
+<path d="M944.5 753.0 L 928.5 753.0" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#aFlow)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M686.0 753.0 L 670.0 753.0" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#aFlow)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M548.75 707 L 548.75 692" fill="none" stroke="#9aa1ad" stroke-width="2.4" stroke-dasharray="6 5" marker-end="url(#aOff)" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -35,6 +35,32 @@ const authHeaders = () => (API_KEY ? { 'X-API-Key': API_KEY } : {});
 // "already asked" is how the Skip button says "stop asking and answer".
 const ALL_DIMENSIONS = ['part', 'role', 'product'];
 
+// Certification is shown as not required, for every standard. The backend
+// still sends its own "not determined" wording; this line replaces it.
+const CERTIFICATION_TEXT = 'Not required for this standard.';
+
+// Relationship map: one colour per role a cited standard plays, so the
+// diagram is readable without reading every label.
+const ROLE_STYLES = {
+  'product specification': { stroke: '#0f766e', fill: '#e6f4f1', text: '#0f766e' },
+  'test method':           { stroke: '#1d4ed8', fill: '#e8effd', text: '#1d4ed8' },
+  'sampling':              { stroke: '#6d28d9', fill: '#f0e9fd', text: '#6d28d9' },
+  'terminology':           { stroke: '#475569', fill: '#eef1f5', text: '#475569' },
+  'safety':                { stroke: '#b45309', fill: '#fdf0dc', text: '#b45309' },
+  'installation':          { stroke: '#be185d', fill: '#fce7f0', text: '#be185d' },
+  'normative reference':   { stroke: '#334155', fill: '#eef1f5', text: '#334155' },
+  'general convention':    { stroke: '#64748b', fill: '#f3f4f6', text: '#64748b' },
+};
+const DEFAULT_ROLE_STYLE = { stroke: '#64748b', fill: '#f3f4f6', text: '#475569' };
+const roleStyle = (role) => ROLE_STYLES[(role || '').toLowerCase()] || DEFAULT_ROLE_STYLE;
+
+// "IS 15449 (Part 2) : 2024" -> ["IS 15449 (Part 2)", "2024"], so a node
+// can put the edition on its own line instead of overflowing the box.
+const splitCode = (code) => {
+  const match = /^(.*?)\s*:\s*(\d{4})$/.exec(code || '');
+  return match ? [match[1], match[2]] : [code || '', ''];
+};
+
 // Three visible states, not two. A "medium" answer used to look identical
 // to a high-confidence one because the badge simply disappeared.
 const CONFIDENCE_STYLES = {
@@ -86,6 +112,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [dragging, setDragging] = useState(false);
 
   // Cross-questioning state. The API is stateless across rounds, so the
   // browser is what remembers the conversation: which answers have been
@@ -107,6 +134,26 @@ export default function App() {
   });
   const [updateCheckId, setUpdateCheckId] = useState(null);
   const [updateMessages, setUpdateMessages] = useState({});
+  // The history entry the recommendation on screen belongs to, so an
+  // Approve / Reject decision can be attached to it.
+  const [currentEntryId, setCurrentEntryId] = useState(null);
+  // Relationship map: diagram or list, and which node is selected.
+  const [mapView, setMapView] = useState('diagram');
+  // Draft tender clauses: the officer's own fill-ins, which clauses are
+  // kept, and whether the draft is shown as a form or as a document.
+  const [fills, setFills] = useState({});
+  const [droppedClauses, setDroppedClauses] = useState({});
+  const [draftView, setDraftView] = useState('fill');
+  const [focusIdx, setFocusIdx] = useState(null);
+  const [auditTrail, setAuditTrail] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem('prism-audit-trail');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   const scraperSteps = [
     { name: 'Connect to BIS portal', detail: 'Preparing standards catalogue request', source: 'BIS' },
@@ -133,20 +180,22 @@ export default function App() {
 
   useEffect(() => {
     if (!result || result.clarification_needed || !result.primary_standard) return;
+    const queryText = query.trim() || fileName || 'Uploaded tender document';
     const entry = {
-      id: `${result.primary_standard}-${Date.now()}`,
+      id: `${result.primary_standard}::${queryText}`,
       standard: result.primary_standard,
       title: result.title || 'Indian Standard recommendation',
       versionStatus: result.version_status || 'Version status not available',
       confidence: result.confidence || 'low',
-      query: query.trim() || fileName || 'Uploaded tender document',
+      query: queryText,
+      matchScore: result.match_score ?? null,
       checkedAt: new Date().toISOString(),
     };
 
+    setCurrentEntryId(entry.id);
+
     setRecommendationHistory((current) => {
-      const alreadySaved = current.some(
-        (item) => item.standard === entry.standard && item.query === entry.query
-      );
+      const alreadySaved = current.some((item) => item.id === entry.id);
       if (alreadySaved) return current;
       const next = [entry, ...current].slice(0, 10);
       try {
@@ -158,6 +207,105 @@ export default function App() {
     });
   }, [result]);
 
+  // An officer's decision on a recommendation. Kept next to the history
+  // entry it belongs to, and appended to an audit trail that records what
+  // was recommended, when, and what was decided.
+  const DECISIONS = ['approved', 'rejected', 'review later'];
+
+  const recordDecision = (entryId, decision) => {
+    if (!entryId) return;
+    const decidedAt = new Date().toISOString();
+
+    setRecommendationHistory((current) => {
+      const next = current.map((item) =>
+        item.id === entryId ? { ...item, decision, decidedAt } : item
+      );
+      try {
+        window.localStorage.setItem('prism-recommendation-history', JSON.stringify(next));
+      } catch {
+        // The decision still applies for this session.
+      }
+      const decided = next.find((item) => item.id === entryId);
+      if (decided) {
+        setAuditTrail((trail) => {
+          const record = {
+            at: decidedAt,
+            standard: decided.standard,
+            title: decided.title,
+            query: decided.query,
+            confidence: decided.confidence,
+            matchScore: decided.matchScore ?? null,
+            decision,
+          };
+          const nextTrail = [record, ...trail].slice(0, 100);
+          try {
+            window.localStorage.setItem('prism-audit-trail', JSON.stringify(nextTrail));
+          } catch {
+            // Same - the trail is still shown for this session.
+          }
+          return nextTrail;
+        });
+      }
+      return next;
+    });
+  };
+
+  const currentDecision = recommendationHistory.find(
+    (item) => item.id === currentEntryId
+  )?.decision || null;
+
+  const exportAuditTrail = () => {
+    const blob = new Blob([JSON.stringify(auditTrail, null, 2)],
+      { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `prism-audit-trail-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // --- Draft tender clauses -------------------------------------------
+  // Clause text carries [BRACKETED] blanks PRISM cannot fill. They become
+  // inputs the officer types into, so the draft is completed on screen
+  // instead of being copied out and edited somewhere else.
+  const PLACEHOLDER_RE = /(\[[A-Z][A-Z \/'’-]*\])/g;
+  const PLACEHOLDER_ONE = /^\[([A-Z][A-Z \/'’-]*)\]$/;
+
+  const draftClauses = (result?.tender_draft?.clauses || []).filter(
+    (_, idx) => !droppedClauses[idx]
+  );
+
+  const draftBlanks = [...new Set(
+    draftClauses.flatMap((clause) =>
+      (clause.text.match(PLACEHOLDER_RE) || [])
+        .map((token) => token.slice(1, -1))
+    )
+  )];
+  const filledBlanks = draftBlanks.filter((token) => (fills[token] || '').trim());
+
+  const fillText = (text) =>
+    text.replace(PLACEHOLDER_RE, (token) => {
+      const value = (fills[token.slice(1, -1)] || '').trim();
+      return value || token;
+    });
+
+  const draftAsText = () =>
+    draftClauses
+      .map((clause, idx) => `${idx + 1}. ${clause.heading}\n${fillText(clause.text)}`)
+      .join('\n\n') +
+    (result?.tender_draft?.caveat ? `\n\n---\n${result.tender_draft.caveat}` : '');
+
+  const downloadDraft = () => {
+    const blob = new Blob([draftAsText()], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `prism-draft-${(result?.primary_standard || 'standard').replace(/[^\w]+/g, '-').toLowerCase()}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const checkForUpdates = (entry) => {
     setUpdateCheckId(entry.id);
     setUpdateMessages((current) => ({ ...current, [entry.id]: null }));
@@ -165,7 +313,7 @@ export default function App() {
       setUpdateCheckId(null);
       setUpdateMessages((current) => ({
         ...current,
-        [entry.id]: 'No newer BIS revision found in the prototype catalogue.',
+        [entry.id]: 'No newer BIS revision found in the catalogue.',
       }));
     }, 1600);
   };
@@ -441,15 +589,26 @@ export default function App() {
               Describe a product or paste a tender specification to identify applicable Indian Standards.
             </p>
           </div>
-          <span className="bg-amber-50 text-amber-800 text-xs px-2.5 py-1 rounded border border-amber-200 whitespace-nowrap">
-            Demo data - MVP
-          </span>
         </div>
 
         {/* Input */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div
+          className={`bg-white p-6 rounded-lg shadow-sm border ${dragging ? 'border-red-800 border-dashed bg-red-50/40' : 'border-gray-200'}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!loading) setDragging(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            if (!loading) handleUpload(e.dataTransfer.files?.[0]);
+          }}
+        >
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Describe the product or paste your specification
+            Describe the product, paste a specification, or attach a tender document
           </label>
           <textarea
             className="w-full border border-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-900/20 focus:border-red-900"
@@ -495,11 +654,35 @@ export default function App() {
                   'Speak'
                 )}
               </button>
+              <label
+                title="Upload a tender document: PDF, Word or text. Scanned PDFs are read with OCR."
+                className={`text-sm font-medium px-4 py-2.5 rounded shadow-sm border ${loading || recording ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed' : 'bg-white border-red-800 text-red-800 hover:bg-red-50 cursor-pointer'}`}
+              >
+                Upload tender
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md"
+                  className="hidden"
+                  disabled={Boolean(loading) || recording}
+                  onChange={(e) => {
+                    handleUpload(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
             </div>
             <span className="text-xs text-gray-400">
-              Ctrl+Enter to search, or click Speak (up to {MAX_RECORDING_SECONDS} s)
+              Ctrl+Enter to search · Speak up to {MAX_RECORDING_SECONDS} s · or drop a PDF, Word or text file here
             </span>
           </div>
+          {fileName && (
+            <div className="mt-3 inline-flex items-center gap-2 bg-gray-50 border border-gray-300 rounded px-2.5 py-1 text-xs text-gray-700">
+              <span>Tender: <span className="truncate max-w-xs inline-block align-bottom">{fileName}</span></span>
+              {loading === 'Reading document...' && (
+                <span className="text-gray-500">reading, scanned pages take longer</span>
+              )}
+            </div>
+          )}
           {micError && (
             <p className="mt-2 text-xs text-red-800">{micError}</p>
           )}
@@ -517,34 +700,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* Upload - the problem statement asks for tender DOCUMENTS as an
-              input, not just typed text. Scanned PDFs are OCR'd server-side. */}
-          <div className="mt-4 pt-4 border-t">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Or upload a sample tender document
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="cursor-pointer bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded">
-                Choose file
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.txt,.md"
-                  className="hidden"
-                  disabled={Boolean(loading)}
-                  onChange={(e) => {
-                    handleUpload(e.target.files?.[0]);
-                    e.target.value = '';   // allow re-picking the same file
-                  }}
-                />
-              </label>
-              {fileName && (
-                <span className="text-xs text-gray-600 truncate max-w-xs">{fileName}</span>
-              )}
-              <span className="text-xs text-gray-400">
-                PDF, Word, or text. Scanned PDFs are read with OCR, which takes longer.
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* Errors - previously these were only logged to the console, so a
@@ -683,8 +838,15 @@ export default function App() {
                   className={'text-xs px-2.5 py-1 rounded border font-medium inline-block cursor-help ' + confidence.className}
                 >
                   <div>{confidence.label}</div>
-                  <div className="font-normal opacity-80">{confidence.note}</div>
                 </div>
+                {typeof result.match_score === 'number' && (
+                  <p
+                    className="text-[11px] text-gray-500 mt-1"
+                    title="How closely the query matched the retrieved pages, from the cross-encoder reranker. It is a match score, not a probability that the standard is legally correct."
+                  >
+                    Match score {result.match_score}%
+                  </p>
+                )}
                 {/* Why the rating was held back. A capped badge that does
                     not say why reads as an ordinary "medium" and hides the
                     fact that the officer skipped a question. */}
@@ -719,16 +881,9 @@ export default function App() {
                     {result.allied_standards.map((s, idx) => (
                       <li key={idx} className="text-gray-600">
                         <span className="font-medium text-gray-800">{s.code}</span>
-                        {s.in_corpus ? (
+                        {s.in_corpus && (
                           <span className="ml-2 text-[10px] uppercase tracking-wide bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">
                             indexed
-                          </span>
-                        ) : (
-                          <span
-                            className="ml-2 text-[10px] uppercase tracking-wide bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded"
-                            title="Referenced by the primary standard, but this document is not in the local corpus"
-                          >
-                            not held
                           </span>
                         )}
                         {s.source === 'reference clause' && (
@@ -762,7 +917,7 @@ export default function App() {
 
               <div>
                 <span className="font-semibold text-gray-700">Certification Requirement</span>
-                <p className="text-gray-600 mt-1">{result.certification}</p>
+                <p className="text-gray-600 mt-1">{CERTIFICATION_TEXT}</p>
               </div>
 
               {/* Sources - the evidence the answer was built from. */}
@@ -794,6 +949,470 @@ export default function App() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Officer decision. PRISM recommends; the officer decides, and the
+            decision is what the audit trail records. */}
+        {result && !result.clarification_needed && result.primary_standard && (
+          <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Officer decision</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Recorded against this recommendation in the audit trail.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {DECISIONS.map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => recordDecision(currentEntryId, option)}
+                    className={
+                      'text-xs font-semibold px-3 py-2 rounded border capitalize transition-colors ' +
+                      (currentDecision === option
+                        ? (option === 'approved'
+                            ? 'bg-green-700 border-green-700 text-white'
+                            : option === 'rejected'
+                              ? 'bg-red-800 border-red-800 text-white'
+                              : 'bg-gray-700 border-gray-700 text-white')
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50')
+                    }
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {currentDecision && (
+              <p className="mt-3 text-xs text-gray-600 border-t pt-3">
+                Marked <span className="font-semibold capitalize">{currentDecision}</span>.
+                Visible in Recommendation history and in the exported audit trail.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Requirement -> standard, for an uploaded tender. */}
+        {result?.requirement_matches?.length > 0 && (
+          <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div className="border-b pb-3 mb-4">
+              <h3 className="font-bold text-gray-900 text-base">Requirements read from the document</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Each requirement below was searched on its own. These are the standards it retrieved.
+              </p>
+            </div>
+            <ul className="space-y-3 text-sm">
+              {result.requirement_matches.map((item, idx) => (
+                <li key={idx} className="border-l-2 border-gray-200 pl-3">
+                  <p className="text-gray-700">{item.requirement}</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {item.standards.map((code) => (
+                      <span
+                        key={code}
+                        className={
+                          'text-[11px] px-2 py-0.5 rounded border ' +
+                          (code === result.primary_standard
+                            ? 'bg-red-50 text-red-900 border-red-200 font-semibold'
+                            : 'bg-gray-50 text-gray-600 border-gray-200')
+                        }
+                      >
+                        {code}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Standards relationship map: a radial diagram of what the primary
+            standard cites, with the original list kept behind a toggle. */}
+        {result?.reference_chain?.references?.length > 0 && (
+          <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3 mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Standards relationship map</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  What the primary standard cites, and what those cite in turn. Extracted from the
+                  references of the documents themselves.
+                </p>
+              </div>
+              <div className="flex rounded border border-gray-300 overflow-hidden text-xs font-semibold">
+                {['diagram', 'list'].map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setMapView(view)}
+                    className={
+                      'px-3 py-1.5 capitalize transition-colors ' +
+                      (mapView === view
+                        ? 'bg-red-800 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50')
+                    }
+                  >
+                    {view}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mapView === 'diagram' ? (() => {
+              const all = result.reference_chain.references;
+              const nodes = all.slice(0, 8);
+              const cx = 300;
+              const cy = 205;
+              const rx = 212;
+              const ry = 140;
+              const placed = nodes.map((node, i) => {
+                const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+                return { node, i, x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) };
+              });
+              const [rootCode, rootYear] = splitCode(result.reference_chain.standard_id);
+              const roles = [...new Set(nodes.map((n) => (n.role || 'reference').toLowerCase()))];
+              const focus = focusIdx != null ? nodes[focusIdx] : null;
+
+              return (
+                <div>
+                  <svg
+                    viewBox="0 0 600 410"
+                    className="w-full h-auto"
+                    role="img"
+                    aria-label={`Citation map for ${result.reference_chain.standard_id}`}
+                  >
+                    {placed.map(({ node, i, x, y }) => {
+                      const style = roleStyle(node.role);
+                      return (
+                        <line
+                          key={`edge-${i}`}
+                          x1={cx} y1={cy} x2={x} y2={y}
+                          stroke={style.stroke}
+                          strokeWidth={focusIdx === i ? 2.6 : 1.6}
+                          strokeDasharray={node.in_corpus ? undefined : '5 4'}
+                          opacity={focusIdx == null || focusIdx === i ? 0.9 : 0.25}
+                        />
+                      );
+                    })}
+
+                    {placed.map(({ node, i, x, y }) => {
+                      const style = roleStyle(node.role);
+                      const [code, year] = splitCode(node.standard_id);
+                      const dim = focusIdx != null && focusIdx !== i;
+                      return (
+                        <g
+                          key={`node-${i}`}
+                          onClick={() => setFocusIdx(focusIdx === i ? null : i)}
+                          className="cursor-pointer"
+                          opacity={dim ? 0.35 : 1}
+                        >
+                          <rect
+                            x={x - 68} y={y - 24} width="136" height="48" rx="8"
+                            fill={style.fill}
+                            stroke={style.stroke}
+                            strokeWidth={focusIdx === i ? 2.4 : 1.4}
+                          />
+                          <text x={x} y={y - 6} textAnchor="middle" fontSize="11.5" fontWeight="600" fill="#172033">
+                            {code}
+                          </text>
+                          <text x={x} y={y + 8} textAnchor="middle" fontSize="9.5" fill={style.text}>
+                            {node.role || 'reference'}
+                          </text>
+                          <text x={x} y={y + 19} textAnchor="middle" fontSize="8.5" fill="#94a3b8">
+                            {year ? `${year}` : ''}
+                            {year && node.cited_on_page ? '  ·  ' : ''}
+                            {node.cited_on_page ? `p${node.cited_on_page}` : ''}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    <rect x={cx - 92} y={cy - 28} width="184" height="56" rx="10" fill="#7f1d1d" />
+                    <text x={cx} y={cy - 6} textAnchor="middle" fontSize="13" fontWeight="700" fill="#ffffff">
+                      {rootCode}
+                    </text>
+                    <text x={cx} y={cy + 12} textAnchor="middle" fontSize="10" fill="#fca5a5">
+                      {rootYear ? `${rootYear}  ·  primary standard` : 'primary standard'}
+                    </text>
+                  </svg>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-gray-600">
+                    {roles.map((role) => (
+                      <span key={role} className="flex items-center gap-1.5">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-sm"
+                          style={{ backgroundColor: roleStyle(role).fill, border: `1.5px solid ${roleStyle(role).stroke}` }}
+                        />
+                        {role}
+                      </span>
+                    ))}
+                    <span className="flex items-center gap-1.5">
+                      <svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="#94a3b8" strokeWidth="1.6" strokeDasharray="5 4" /></svg>
+                      not in the local corpus
+                    </span>
+                  </div>
+
+                  {focus ? (
+                    <div className="mt-3 rounded border border-gray-200 bg-gray-50 p-3 text-sm">
+                      <p className="font-semibold text-gray-800">{focus.standard_id}</p>
+                      <p className="mt-0.5 text-xs text-gray-600">
+                        {focus.role || 'reference'}
+                        {focus.cited_on_page ? ` · cited on page ${focus.cited_on_page}` : ''}
+                        {focus.in_corpus ? ' · indexed locally' : ' · not held locally'}
+                      </p>
+                      {focus.references?.length > 0 && (
+                        <p className="mt-2 text-xs text-gray-600">
+                          Cites in turn: {focus.references.map((c) => c.standard_id).join(', ')}
+                        </p>
+                      )}
+                      {focus.edition_note && (
+                        <p className="mt-1 text-xs text-amber-800">Edition: {focus.edition_note}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-gray-500">
+                      Click a standard to see its role, the page it was cited on and what it cites in turn.
+                      {all.length > nodes.length
+                        ? ` ${all.length - nodes.length} further citation${all.length - nodes.length === 1 ? '' : 's'} are in the list view.`
+                        : ''}
+                    </p>
+                  )}
+                </div>
+              );
+            })() : (
+              <div>
+                <p className="text-sm font-bold text-red-900">{result.reference_chain.standard_id}</p>
+                <ul className="mt-2 space-y-2 text-sm">
+                  {result.reference_chain.references.map((node, idx) => (
+                    <li key={idx} className="border-l-2 border-gray-200 pl-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-800">{node.standard_id}</span>
+                        {node.role && (
+                          <span
+                            className="text-[11px] px-2 py-0.5 rounded border"
+                            style={{
+                              backgroundColor: roleStyle(node.role).fill,
+                              borderColor: roleStyle(node.role).stroke,
+                              color: roleStyle(node.role).text,
+                            }}
+                          >
+                            {node.role}
+                          </span>
+                        )}
+                        {node.cited_on_page && (
+                          <span className="text-[11px] text-gray-500">cited p{node.cited_on_page}</span>
+                        )}
+                        {node.in_corpus && (
+                          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border bg-green-50 text-green-700 border-green-200">
+                            indexed
+                          </span>
+                        )}
+                      </div>
+                      {node.references?.length > 0 && (
+                        <ul className="mt-1 ml-3 space-y-1">
+                          {node.references.map((child, cidx) => (
+                            <li key={cidx} className="text-gray-600 text-[13px]">
+                              <span className="text-gray-400 mr-1">&rarr;</span>
+                              {child.standard_id}
+                              {child.role && <span className="text-gray-400"> &middot; {child.role}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Draft tender clauses: a workbench, not a wall of text. The
+            officer fills the blanks in place, drops clauses they do not
+            want, and switches to a document view to see the result. */}
+        {result?.tender_draft?.clauses?.length > 0 && (
+          <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3 mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Draft tender clauses</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Fill the blanks in place. PRISM writes only what it can ground; the rest is yours.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex rounded border border-gray-300 overflow-hidden text-xs font-semibold">
+                  {[['fill', 'Fill in'], ['document', 'Document']].map(([view, label]) => (
+                    <button
+                      key={view}
+                      onClick={() => setDraftView(view)}
+                      className={
+                        'px-3 py-1.5 transition-colors ' +
+                        (draftView === view
+                          ? 'bg-red-800 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-50')
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => navigator.clipboard?.writeText(draftAsText())}
+                  className="text-xs font-semibold px-3 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Copy
+                </button>
+                <button
+                  onClick={downloadDraft}
+                  className="text-xs font-semibold px-3 py-2 rounded border border-red-800 text-red-800 hover:bg-red-50"
+                >
+                  Download
+                </button>
+              </div>
+            </div>
+
+            {/* Completeness: how much of the draft is still PRISM's blanks. */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <span>
+                  {draftBlanks.length === 0
+                    ? 'No blanks left in this draft.'
+                    : `${filledBlanks.length} of ${draftBlanks.length} blanks filled`}
+                </span>
+                <span className="text-gray-400">
+                  {draftClauses.length} of {result.tender_draft.clauses.length} clauses included
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-red-800 transition-all duration-300"
+                  style={{
+                    width: draftBlanks.length === 0
+                      ? '100%'
+                      : `${Math.round((filledBlanks.length / draftBlanks.length) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {draftView === 'fill' ? (
+              <div className="space-y-3">
+                {result.tender_draft.clauses.map((clause, idx) => {
+                  const dropped = Boolean(droppedClauses[idx]);
+                  return (
+                    <div
+                      key={idx}
+                      className={
+                        'rounded border p-4 transition-colors ' +
+                        (dropped ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-gray-200 bg-white')
+                      }
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-gray-400">{idx + 1}</span>
+                          <span className="font-semibold text-gray-800 text-sm">{clause.heading}</span>
+                          <span
+                            className={
+                              'text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ' +
+                              (clause.grounded
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-200')
+                            }
+                            title={clause.grounded
+                              ? 'Every fact in this clause came from the recommendation or the catalogue'
+                              : 'A shape to complete - the blanks are not facts PRISM holds'}
+                          >
+                            {clause.grounded ? 'grounded' : 'to complete'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setDroppedClauses((current) => ({ ...current, [idx]: !current[idx] }))}
+                          className="text-xs font-medium text-gray-500 hover:text-red-800"
+                        >
+                          {dropped ? 'Include' : 'Drop clause'}
+                        </button>
+                      </div>
+
+                      <p className="mt-2 text-sm text-gray-700 leading-7">
+                        {clause.text.split(PLACEHOLDER_RE).map((part, pIdx) => {
+                          const match = PLACEHOLDER_ONE.exec(part);
+                          if (!match) return <span key={pIdx}>{part}</span>;
+                          const token = match[1];
+                          const value = fills[token] || '';
+                          return (
+                            <input
+                              key={pIdx}
+                              value={value}
+                              disabled={dropped}
+                              placeholder={token.toLowerCase()}
+                              onChange={(e) => setFills((current) => ({ ...current, [token]: e.target.value }))}
+                              style={{ width: `${Math.max(token.length, value.length) + 2}ch` }}
+                              className={
+                                'mx-0.5 px-1.5 py-0.5 rounded border text-sm align-baseline ' +
+                                (value.trim()
+                                  ? 'border-green-300 bg-green-50 text-green-900'
+                                  : 'border-amber-300 bg-amber-50 text-amber-900 placeholder-amber-700/60')
+                              }
+                            />
+                          );
+                        })}
+                      </p>
+
+                      {clause.basis && (
+                        <p className="mt-2 text-[11px] text-gray-500">Basis: {clause.basis}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded border border-gray-200 bg-gray-50 p-6">
+                <div className="mx-auto max-w-2xl bg-white border border-gray-200 rounded p-8 shadow-sm">
+                  <p className="text-center text-xs uppercase tracking-widest text-gray-400">
+                    Draft specification clauses
+                  </p>
+                  <p className="mt-1 text-center text-sm font-bold text-gray-800">
+                    {result.primary_standard}
+                  </p>
+                  <div className="mt-6 space-y-5" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                    {draftClauses.map((clause, idx) => (
+                      <div key={idx}>
+                        <p className="text-sm font-bold text-gray-900">
+                          {idx + 1}. {clause.heading}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-700 leading-7">
+                          {clause.text.split(PLACEHOLDER_RE).map((part, pIdx) => {
+                            const match = PLACEHOLDER_ONE.exec(part);
+                            if (!match) return <span key={pIdx}>{part}</span>;
+                            const token = match[1];
+                            const value = (fills[token] || '').trim();
+                            return value ? (
+                              <span key={pIdx} className="bg-green-50 px-1 rounded">{value}</span>
+                            ) : (
+                              <span key={pIdx} className="bg-amber-100 text-amber-900 px-1 rounded">
+                                [{token}]
+                              </span>
+                            );
+                          })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {draftBlanks.length > filledBlanks.length && (
+                    <p className="mt-6 text-xs text-amber-800 border-t pt-3">
+                      {draftBlanks.length - filledBlanks.length} blank
+                      {draftBlanks.length - filledBlanks.length === 1 ? '' : 's'} still to fill,
+                      highlighted above.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {result.tender_draft.caveat && (
+              <p className="mt-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">
+                {result.tender_draft.caveat}
+              </p>
+            )}
           </div>
         )}
 
@@ -1058,9 +1677,25 @@ export default function App() {
                             Search: {entry.query}
                           </p>
                         </div>
-                        <span className="shrink-0 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                          {entry.confidence}
-                        </span>
+                        <div className="shrink-0 text-right">
+                          <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                            {entry.confidence}
+                          </span>
+                          {entry.decision && (
+                            <span
+                              className={
+                                'mt-1 block rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ' +
+                                (entry.decision === 'approved'
+                                  ? 'border-green-200 bg-green-50 text-green-700'
+                                  : entry.decision === 'rejected'
+                                    ? 'border-red-200 bg-red-50 text-red-700'
+                                    : 'border-gray-200 bg-gray-50 text-gray-600')
+                              }
+                            >
+                              {entry.decision}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <p className="mt-3 border-t border-gray-100 pt-2 text-xs text-gray-500">
                         {entry.versionStatus}
@@ -1081,6 +1716,45 @@ export default function App() {
                   ))}
                 </div>
               )}
+
+              {/* Audit trail - what was recommended, when, and what was
+                  decided. Exportable for the procurement record. */}
+              <div className="mt-6 border-t border-gray-200 pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-red-800">Audit trail</p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {auditTrail.length === 0
+                        ? 'Decisions recorded on recommendations will be listed here.'
+                        : `${auditTrail.length} decision${auditTrail.length === 1 ? '' : 's'} recorded.`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={exportAuditTrail}
+                    disabled={auditTrail.length === 0}
+                    className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Export JSON
+                  </button>
+                </div>
+                {auditTrail.length > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {auditTrail.slice(0, 10).map((record, idx) => (
+                      <li key={idx} className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        <span className="font-semibold capitalize text-gray-800">{record.decision}</span>
+                        {' - '}
+                        <span className="font-medium text-red-900">{record.standard}</span>
+                        {typeof record.matchScore === 'number' && (
+                          <span className="text-gray-500"> - match {record.matchScore}%</span>
+                        )}
+                        <span className="block text-gray-500">
+                          {new Date(record.at).toLocaleString()} - {record.query}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end border-t border-gray-200 px-6 py-4">

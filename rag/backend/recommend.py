@@ -108,6 +108,12 @@ class ClarifyQuestion(BaseModel):
     allow_multiple: bool = False
 
 
+class RequirementMatch(BaseModel):
+    """One requirement line from an uploaded tender, and what it retrieved."""
+    requirement: str
+    standards: List[str] = Field(default_factory=list)
+
+
 class RecommendResponse(BaseModel):
     clarification_needed: bool = False
     message: Optional[str] = None
@@ -128,6 +134,10 @@ class RecommendResponse(BaseModel):
 
     confidence_flag: bool = False
     confidence: str = "low"
+    # The cross-encoder score for the chosen standard, mapped to 0-100. This
+    # is a retrieval match score, not a probability that the standard is the
+    # legally correct one - the badge above is what qualifies it.
+    match_score: Optional[int] = None
     # Why confidence was held back, when it was. Null when nothing capped it.
     confidence_note: Optional[str] = None
     reasoning: Optional[str] = None
@@ -138,6 +148,8 @@ class RecommendResponse(BaseModel):
     gem_categories: Optional[dict] = None
     # Draft clauses for the officer to edit. Never tender-ready text.
     tender_draft: Optional[TenderDraft] = None
+    # For uploads: which requirement in the document produced which standard.
+    requirement_matches: List[RequirementMatch] = Field(default_factory=list)
 
 
 # --- prompt ------------------------------------------------------------
@@ -325,6 +337,24 @@ CERTIFICATION_NOTE = (
     "CRS, Hallmarking) are not yet available to this system and are never "
     "guessed - verify against the current BIS/QCO listings."
 )
+
+
+def _match_score(raw_score) -> Optional[int]:
+    """
+    The retrieval match score, 0-100.
+
+    The cross-encoder returns a logit, not a percentage: strong matches land
+    around +8, vague ones around -3. A logistic maps that to a number an
+    officer can read, and keeps the ordering the reranker produced. It says
+    how well the query matched the document - nothing more. Sufficiency is
+    the confidence badge's job.
+    """
+    try:
+        value = float(raw_score)
+    except (TypeError, ValueError):
+        return None
+    # Capped at 99: a retrieval score is never a claim of certainty.
+    return max(1, min(99, int(round(100.0 / (1.0 + math.exp(-value))))))
 
 
 def _sources_from(groups: List[dict]) -> List[SourceRef]:
@@ -580,6 +610,7 @@ def _finalise(description: str, groups: List[dict], llm,
         certification=CERTIFICATION_NOTE,
         confidence_flag=(confidence == "high"),
         confidence=confidence,
+        match_score=_match_score(chosen.get("best_score")),
         confidence_note=confidence_note,
         reasoning=parsed.get("reasoning"),
         sources=_sources_from([chosen]),
@@ -642,6 +673,12 @@ def _passages(text: str, size: int, limit: int) -> List[str]:
     return out[:limit]
 
 
+def _requirement_snippet(passage: str, limit: int = 200) -> str:
+    """One readable line for a passage of the uploaded tender."""
+    text = " ".join(passage.split())
+    return text if len(text) <= limit else text[:limit].rstrip() + "..."
+
+
 def _merge_groups(per_passage: List[List[dict]]) -> List[dict]:
     """
     Combine per-passage results into one ranking of standards.
@@ -695,4 +732,17 @@ def recommend_from_document(text: str, retriever, llm) -> RecommendResponse:
 
     # A document is never "too brief" - the short-query check that guards
     # typed input does not apply here.
-    return _finalise(text[:3000], groups, llm)
+    response = _finalise(text[:3000], groups, llm)
+
+    # Which line of the tender produced which standard. Without this the
+    # officer sees an answer for a forty page document and no way to tell
+    # which requirement it came from.
+    kept = {group["standard_id"] for group in groups}
+    matches = []
+    for passage, results in zip(passages, per_passage):
+        ids = [g["standard_id"] for g in results if g["standard_id"] in kept][:3]
+        if ids:
+            matches.append(RequirementMatch(
+                requirement=_requirement_snippet(passage), standards=ids))
+    response.requirement_matches = matches[:12]
+    return response

@@ -17,6 +17,10 @@ venv/
 *.bak
 *.orig
 
+# Local working notes and generated outputs
+Claude outputs/
+structure.txt
+
 # Editors and operating systems
 .vscode/
 .idea/
